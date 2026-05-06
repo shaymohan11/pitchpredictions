@@ -185,6 +185,51 @@ async function getStandingsESPN(leagueId) {
     return result;
 }
 
+// ── UCL/UEL Knockout Bracket ──────────────────────────────────────────────────
+
+const KNOCKOUT_ROUNDS = ['Round of 16', 'Quarter-finals', 'Semi-finals', 'Final'];
+
+async function getUCLKnockout(leagueId) {
+    const season = getCurrentSeason();
+    const cacheKey = `bracket_${leagueId}_${season}`;
+    const cached = fromCache('STANDINGS', cacheKey);
+    if (cached) return cached;
+
+    const all = await apiFetch(`/fixtures?league=${leagueId}&season=${season}`);
+    if (!all || !all.length) return null;
+
+    const byRound = {};
+    all.forEach(fx => {
+        const round = fx.league.round || '';
+        const matched = KNOCKOUT_ROUNDS.find(r => round.includes(r));
+        if (!matched) return;
+        if (!byRound[matched]) byRound[matched] = {};
+
+        const pairKey = [fx.teams.home.id, fx.teams.away.id].sort().join('-');
+        if (!byRound[matched][pairKey]) {
+            byRound[matched][pairKey] = {
+                team1: fx.teams.home, team2: fx.teams.away,
+                agg1: 0, agg2: 0, played: false
+            };
+        }
+        const pair = byRound[matched][pairKey];
+        if (fx.goals.home !== null && fx.goals.away !== null) {
+            const isHome1 = fx.teams.home.id === pair.team1.id;
+            pair.agg1 += isHome1 ? fx.goals.home : fx.goals.away;
+            pair.agg2 += isHome1 ? fx.goals.away : fx.goals.home;
+            pair.played = true;
+        }
+    });
+
+    // Convert to ordered result, only rounds that have data
+    const result = {};
+    KNOCKOUT_ROUNDS.forEach(r => { if (byRound[r]) result[r] = Object.values(byRound[r]); });
+
+    if (!Object.keys(result).length) return null;
+    toCache('STANDINGS', cacheKey, result);
+    return result;
+}
+
 async function getUpcomingFixtures() {
     const today = new Date();
     const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);

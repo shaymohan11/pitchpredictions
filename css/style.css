@@ -612,6 +612,44 @@ body {
 .fixtures-list { display: flex; flex-direction: column; gap: 4px; }
 .rpane { }
 
+/* ─── Standings Toggle ──────────────────────── */
+.st-toggle-row { display: flex; gap: 4px; margin-bottom: 8px; }
+.st-toggle {
+  background: var(--bg); border: 1px solid var(--border-dark);
+  color: var(--text-muted); font-size: 10px; font-weight: 700;
+  padding: 3px 10px; border-radius: 10px; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
+}
+.st-toggle:hover { border-color: var(--green); color: var(--green); }
+.st-toggle.active { background: var(--green); border-color: var(--green); color: #fff; }
+
+/* ─── UCL Bracket ───────────────────────────── */
+.ucl-bracket { display: flex; flex-direction: column; gap: 4px; }
+.bracket-round-hdr {
+  font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-muted);
+  padding: 10px 0 4px; border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.bracket-round-hdr:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+.bracket-tie {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 6px;
+}
+.bt-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 10px; font-size: 11px; font-weight: 600;
+  border-bottom: 1px solid var(--border); transition: background 0.1s;
+}
+.bt-row:last-child { border-bottom: none; }
+.bt-row.bt-winner { background: var(--green-pale); color: var(--green); }
+.bt-row.bt-loser  { color: var(--text-light); }
+.bt-logo { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
+.bt-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-score { font-size: 13px; font-weight: 900; color: var(--text); flex-shrink: 0; min-width: 14px; text-align: right; }
+.bt-row.bt-winner .bt-score { color: var(--green); }
+.bt-tbd   { font-size: 9px; color: var(--text-light); flex-shrink: 0; }
+
 /* ─── Standings Sidebar ─────────────────────── */
 .standings-table { width: 100%; border-collapse: collapse; }
 .standings-table th {

@@ -190,13 +190,20 @@ function prefillTeams(home, away) {
 }
 
 // ─── Standings ────────────────────────────────────────────────────────────────
+state.standingsRows  = 20;   // 3 or 20
+state.standingsCache = null;
+
 async function loadStandings(leagueId) {
     const el    = document.getElementById('standingsContent');
     const label = document.getElementById('standingsLeagueLabel');
-    if (leagueId === 'all') {
-        // Default to Premier League when "All" is selected
-        return loadStandings('39');
+
+    if (leagueId === 'all') return loadStandings('39');
+
+    // UCL / UEL → show bracket instead of table
+    if (leagueId === '2' || leagueId === '3') {
+        return loadUCLBracket(leagueId);
     }
+
     el.innerHTML = '<div class="sb-empty">Loading...</div>';
     try {
         const data = await getStandingsESPN(leagueId);
@@ -206,30 +213,93 @@ async function loadStandings(leagueId) {
             return;
         }
         if (label) label.textContent = data.leagueName;
-
-        el.innerHTML = `
-            <table class="standings-table">
-                <thead><tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr></thead>
-                <tbody>
-                    ${data.rows.map(r => `
-                        <tr>
-                            <td class="st-pos">${r.rank}</td>
-                            <td>
-                                <div style="display:flex;align-items:center;gap:5px">
-                                    <img src="${r.team.logo}" width="14" height="14" style="object-fit:contain;flex-shrink:0" onerror="this.style.display='none'">
-                                    <span class="st-name">${r.team.name}</span>
-                                </div>
-                            </td>
-                            <td class="st-num">${r.played}</td>
-                            <td class="st-num" style="color:${r.goalDiff >= 0 ? 'var(--green)' : 'var(--red)'}">${r.goalDiff > 0 ? '+' : ''}${r.goalDiff}</td>
-                            <td class="st-pts">${r.points}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-    } catch (e) {
+        state.standingsCache = data;
+        renderStandingsTable(data);
+    } catch (_) {
         el.innerHTML = `<div class="sb-empty">Couldn't load standings</div>`;
+    }
+}
+
+function renderStandingsTable(data) {
+    const el   = document.getElementById('standingsContent');
+    const rows = data.rows.slice(0, state.standingsRows);
+    el.innerHTML = `
+        <div class="st-toggle-row">
+            <button class="st-toggle ${state.standingsRows === 3  ? 'active' : ''}" data-rows="3">Top 3</button>
+            <button class="st-toggle ${state.standingsRows === 20 ? 'active' : ''}" data-rows="20">All 20</button>
+        </div>
+        <table class="standings-table">
+            <thead><tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr></thead>
+            <tbody>
+                ${rows.map(r => `
+                    <tr>
+                        <td class="st-pos">${r.rank}</td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:5px">
+                                <img src="${r.team.logo}" width="14" height="14" style="object-fit:contain;flex-shrink:0" onerror="this.style.display='none'">
+                                <span class="st-name">${r.team.name}</span>
+                            </div>
+                        </td>
+                        <td class="st-num">${r.played}</td>
+                        <td class="st-num" style="color:${r.goalDiff >= 0 ? 'var(--green)' : 'var(--red)'}">${r.goalDiff > 0 ? '+' : ''}${r.goalDiff}</td>
+                        <td class="st-pts">${r.points}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    el.querySelectorAll('.st-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            state.standingsRows = parseInt(btn.dataset.rows, 10);
+            if (state.standingsCache) renderStandingsTable(state.standingsCache);
+        });
+    });
+}
+
+// ─── UCL / UEL Bracket ────────────────────────────────────────────────────────
+async function loadUCLBracket(leagueId) {
+    const el    = document.getElementById('standingsContent');
+    const label = document.getElementById('standingsLeagueLabel');
+    const name  = leagueId === '2' ? 'Champions League' : 'Europa League';
+    if (label) label.textContent = name;
+    el.innerHTML = '<div class="sb-empty">Loading bracket...</div>';
+
+    try {
+        const rounds = await getUCLKnockout(leagueId);
+        if (!rounds || !Object.keys(rounds).length) {
+            el.innerHTML = '<div class="sb-empty">Bracket data not yet available for this season</div>';
+            return;
+        }
+
+        const LABELS = { 'Round of 16': 'Round of 16', 'Quarter-finals': 'Quarter-finals', 'Semi-finals': 'Semi-finals', 'Final': 'Final' };
+
+        let html = `<div class="ucl-bracket">`;
+
+        for (const [round, ties] of Object.entries(rounds)) {
+            html += `<div class="bracket-round-hdr">${LABELS[round] || round}</div>`;
+            for (const tie of ties) {
+                const agg1win = tie.played && tie.agg1 > tie.agg2;
+                const agg2win = tie.played && tie.agg2 > tie.agg1;
+                html += `
+                <div class="bracket-tie">
+                    <div class="bt-row ${agg1win ? 'bt-winner' : agg2win ? 'bt-loser' : ''}">
+                        <img src="${tie.team1.logo}" class="bt-logo" onerror="this.style.display='none'">
+                        <span class="bt-name">${tie.team1.name}</span>
+                        ${tie.played ? `<span class="bt-score">${tie.agg1}</span>` : '<span class="bt-tbd">TBD</span>'}
+                    </div>
+                    <div class="bt-row ${agg2win ? 'bt-winner' : agg1win ? 'bt-loser' : ''}">
+                        <img src="${tie.team2.logo}" class="bt-logo" onerror="this.style.display='none'">
+                        <span class="bt-name">${tie.team2.name}</span>
+                        ${tie.played ? `<span class="bt-score">${tie.agg2}</span>` : '<span class="bt-tbd">TBD</span>'}
+                    </div>
+                </div>`;
+            }
+        }
+
+        html += `</div>`;
+        el.innerHTML = html;
+    } catch (_) {
+        el.innerHTML = '<div class="sb-empty">Failed to load bracket</div>';
     }
 }
 
