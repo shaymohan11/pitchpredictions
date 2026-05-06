@@ -3,207 +3,219 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <meta name="theme-color" content="#080d1a">
+    <meta name="theme-color" content="#1a5c2a">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="PitchIQ">
     <link rel="manifest" href="manifest.json">
-    <title>PitchIQ · Football Stats</title>
+    <title>PitchIQ · Football Stats & Predictions</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<!-- API Key Modal -->
-<div id="apiKeyModal" class="modal-overlay">
-    <div class="modal-box">
-        <div class="modal-logo">
-            <div class="logo-mark">⚡</div>
-            <span class="logo-word">PitchIQ</span>
-        </div>
-        <p class="modal-tag">Real-time football stats &amp; predictions</p>
-        <div class="modal-sep"></div>
-        <p class="modal-inst">Connect your free API key to get started</p>
-        <div class="steps">
-            <div class="step"><span class="step-n">1</span><span>Sign up free at <strong>dashboard.api-football.com</strong></span></div>
-            <div class="step"><span class="step-n">2</span><span>Go to <strong>My Account</strong> → copy your API key (100 calls/day free)</span></div>
-            <div class="step"><span class="step-n">3</span><span>Paste your key below and hit Start</span></div>
-        </div>
-        <input type="text" id="apiKeyInput" class="key-input" placeholder="Paste RapidAPI key here..." autocomplete="off" spellcheck="false">
-        <button id="saveKeyBtn" class="btn-cta">Start →</button>
-    </div>
-</div>
-
 <!-- App Shell -->
-<div id="app" class="app hidden">
+<div id="app" class="app">
 
-    <header class="topbar">
-        <div class="topbar-inner">
-            <div class="topbar-logo">
-                <span class="logo-mark sm">⚡</span>
-                <span class="logo-word">PitchIQ</span>
+    <!-- Big Games Ticker -->
+    <div id="bigGamesTicker" class="ticker-bar hidden">
+        <div class="ticker-label">🔴 LIVE</div>
+        <div class="ticker-track">
+            <div id="tickerInner" class="ticker-inner"></div>
+        </div>
+    </div>
+
+    <header class="site-header">
+        <div class="header-inner">
+            <div class="site-logo">
+                <div class="logo-ball">⚽</div>
+                <div class="logo-text">
+                    <span class="logo-name">PitchIQ</span>
+                    <span class="logo-tag">Football Intelligence</span>
+                </div>
             </div>
-            <div class="topbar-right">
-                <div id="apiUsage" class="api-badge hidden"></div>
-                <button id="refreshBtn" class="icon-btn" title="Refresh">&#x21bb;</button>
-                <button id="settingsBtn" class="icon-btn" title="Settings">&#9881;</button>
+            <nav class="header-nav">
+                <button class="nav-btn active" data-tab="live">
+                    <span class="nav-ic">📡</span> Live &amp; Today
+                </button>
+                <button class="nav-btn" data-tab="analyse">
+                    <span class="nav-ic">📊</span> Analyse
+                </button>
+            </nav>
+            <div class="header-right">
+                <div id="apiUsage" class="usage-pill hidden"></div>
+                <button id="refreshBtn" class="refresh-btn" title="Refresh fixtures">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    Refresh
+                </button>
             </div>
         </div>
     </header>
 
-    <nav class="tab-bar">
-        <button class="tab active" data-tab="live">
-            <span class="tab-ic">📡</span><span class="tab-lbl">Live &amp; Today</span>
-        </button>
-        <button class="tab" data-tab="analyse">
-            <span class="tab-ic">📊</span><span class="tab-lbl">Analyse</span>
-        </button>
-    </nav>
-
-    <main class="main">
+    <main class="site-main">
 
         <!-- ══════════ LIVE TAB ══════════ -->
         <div id="liveTab" class="tab-pane active">
 
-            <div class="filter-scroll-wrap">
-                <div class="filter-scroll" id="leagueFilter">
-                    <button class="fchip active" data-league="all">All</button>
-                    <button class="fchip" data-league="2">UCL</button>
-                    <button class="fchip" data-league="3">UEL</button>
-                    <button class="fchip" data-league="39">Premier League</button>
-                    <button class="fchip" data-league="40">Championship</button>
-                    <button class="fchip" data-league="45">FA Cup</button>
-                    <button class="fchip" data-league="48">League Cup</button>
-                    <button class="fchip" data-league="140">La Liga</button>
-                    <button class="fchip" data-league="78">Bundesliga</button>
-                    <button class="fchip" data-league="135">Serie A</button>
-                    <button class="fchip" data-league="61">Ligue 1</button>
-                    <button class="fchip" data-league="94">Primeira Liga</button>
-                    <button class="fchip" data-league="88">Eredivisie</button>
-                    <button class="fchip" data-league="203">Süper Lig</button>
-                    <button class="fchip" data-league="179">Scottish Prem</button>
-                    <button class="fchip" data-league="1">World Cup</button>
-                    <button class="fchip" data-league="4">Euro</button>
+            <div class="league-filter-bar">
+                <div class="container">
+                    <div class="league-chips" id="leagueFilter">
+                        <button class="lchip active" data-league="all">All Leagues</button>
+                        <button class="lchip" data-league="39">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League</button>
+                        <button class="lchip" data-league="40">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship</button>
+                        <button class="lchip" data-league="45">🏴󠁧󠁢󠁥󠁮󠁧󠁿 FA Cup</button>
+                        <button class="lchip" data-league="48">🏴󠁧󠁢󠁥󠁮󠁧󠁿 League Cup</button>
+                        <button class="lchip" data-league="2">🏆 UCL</button>
+                        <button class="lchip" data-league="3">🏆 UEL</button>
+                        <button class="lchip" data-league="140">🇪🇸 La Liga</button>
+                        <button class="lchip" data-league="78">🇩🇪 Bundesliga</button>
+                        <button class="lchip" data-league="135">🇮🇹 Serie A</button>
+                        <button class="lchip" data-league="61">🇫🇷 Ligue 1</button>
+                        <button class="lchip" data-league="94">🇵🇹 Primeira Liga</button>
+                        <button class="lchip" data-league="88">🇳🇱 Eredivisie</button>
+                        <button class="lchip" data-league="203">🇹🇷 Süper Lig</button>
+                        <button class="lchip" data-league="179">🏴󠁧󠁢󠁳󠁣󠁴󠁿 Scottish Prem</button>
+                        <button class="lchip" data-league="1">🌍 World Cup</button>
+                        <button class="lchip" data-league="4">🇪🇺 Euros</button>
+                    </div>
                 </div>
             </div>
 
-            <section class="live-section">
-                <div class="section-hd">
-                    <div class="live-indicator">
-                        <span class="live-dot"></span>
-                        <span class="section-title">Live Now</span>
-                    </div>
-                    <div class="refresh-info">
-                        <span class="refresh-lbl">Refreshing in</span>
-                        <span id="countdown" class="countdown-badge">—</span>
-                    </div>
-                </div>
-                <div id="liveList" class="match-list">
-                    <div class="empty-msg">Loading...</div>
-                </div>
-            </section>
+            <div class="container page-content">
 
-            <section class="today-section">
-                <div class="section-hd">
-                    <span class="section-title">Today's Fixtures</span>
-                    <span id="todayDateLbl" class="section-sub"></span>
-                </div>
-                <div id="todayList" class="match-list">
-                    <div class="empty-msg">Loading...</div>
-                </div>
-            </section>
+                <section class="fixtures-section">
+                    <div class="section-header">
+                        <div class="section-title-wrap">
+                            <span class="live-pulse"></span>
+                            <h2 class="section-title">Live Now</h2>
+                        </div>
+                        <div class="auto-refresh">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Refreshing in <strong id="countdown">—</strong>
+                        </div>
+                    </div>
+                    <div id="liveList" class="fixtures-grid">
+                        <div class="loading-row">Loading fixtures...</div>
+                    </div>
+                </section>
 
+                <section class="fixtures-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Today's Fixtures</h2>
+                        <span id="todayDateLbl" class="section-date"></span>
+                    </div>
+                    <div id="todayList" class="fixtures-grid">
+                        <div class="loading-row">Loading fixtures...</div>
+                    </div>
+                </section>
+
+            </div>
         </div>
 
         <!-- ══════════ ANALYSE TAB ══════════ -->
         <div id="analyseTab" class="tab-pane hidden">
+            <div class="container page-content">
 
-            <div class="card">
-                <h2 class="card-title">Match Setup</h2>
+                <div class="analyse-setup-card">
+                    <h2 class="card-heading">Match Analyser</h2>
+                    <p class="card-sub">Select two teams to get stats, predictions and head-to-head data</p>
 
-                <div class="team-row">
-                    <div class="team-col">
-                        <label class="field-lbl">Home Team</label>
-                        <div class="search-wrap">
-                            <input type="text" id="team1Input" class="search-field" placeholder="Search team..." autocomplete="off">
-                            <div id="team1Drop" class="drop-menu hidden"></div>
+                    <div class="team-picker-row">
+                        <div class="team-picker">
+                            <label class="picker-label">Home Team</label>
+                            <div class="search-box">
+                                <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input type="text" id="team1Input" class="search-input" placeholder="Search team..." autocomplete="off">
+                                <div id="team1Drop" class="search-dropdown hidden"></div>
+                            </div>
+                            <div id="team1Pill" class="selected-team hidden"></div>
                         </div>
-                        <div id="team1Pill" class="pill-wrap hidden"></div>
-                    </div>
-                    <div class="vs-divider">VS</div>
-                    <div class="team-col">
-                        <label class="field-lbl">Away Team</label>
-                        <div class="search-wrap">
-                            <input type="text" id="team2Input" class="search-field" placeholder="Search team..." autocomplete="off">
-                            <div id="team2Drop" class="drop-menu hidden"></div>
-                        </div>
-                        <div id="team2Pill" class="pill-wrap hidden"></div>
-                    </div>
-                </div>
 
-                <div class="opts-grid">
-                    <div class="opt-group">
-                        <label class="field-lbl">Games to analyse</label>
-                        <div class="chip-row" id="gameCountChips">
-                            <button class="chip active" data-val="5">5</button>
-                            <button class="chip" data-val="10">10</button>
-                            <button class="chip" data-val="15">15</button>
-                            <button class="chip" data-val="20">20</button>
+                        <div class="vs-badge">VS</div>
+
+                        <div class="team-picker">
+                            <label class="picker-label">Away Team</label>
+                            <div class="search-box">
+                                <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input type="text" id="team2Input" class="search-input" placeholder="Search team..." autocomplete="off">
+                                <div id="team2Drop" class="search-dropdown hidden"></div>
+                            </div>
+                            <div id="team2Pill" class="selected-team hidden"></div>
                         </div>
                     </div>
-                    <div class="opt-group">
-                        <label class="field-lbl">Venue filter</label>
-                        <div class="chip-row" id="venueChips">
-                            <button class="chip active" data-val="all">All</button>
-                            <button class="chip" data-val="home">Home only</button>
-                            <button class="chip" data-val="away">Away only</button>
+
+                    <div class="options-row">
+                        <div class="option-group">
+                            <label class="option-label">Games to analyse</label>
+                            <div class="toggle-group" id="gameCountChips">
+                                <button class="toggle active" data-val="5">5</button>
+                                <button class="toggle" data-val="10">10</button>
+                                <button class="toggle" data-val="15">15</button>
+                                <button class="toggle" data-val="20">20</button>
+                            </div>
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label">Venue filter</label>
+                            <div class="toggle-group" id="venueChips">
+                                <button class="toggle active" data-val="all">All</button>
+                                <button class="toggle" data-val="home">Home only</button>
+                                <button class="toggle" data-val="away">Away only</button>
+                            </div>
                         </div>
                     </div>
+
+                    <button id="analyseBtn" class="analyse-btn" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        Analyse Match
+                    </button>
                 </div>
 
-                <button id="analyseBtn" class="btn-cta" disabled>Analyse Match</button>
-            </div>
-
-            <div id="analyseLoading" class="loading-card hidden">
-                <div class="spinner"></div>
-                <p id="loadingText">Fetching data...</p>
-                <div class="prog-track"><div id="progFill" class="prog-fill"></div></div>
-                <p class="loading-sub">Each match stat uses 1 API call</p>
-            </div>
-
-            <div id="analyseError" class="error-card hidden">
-                <div class="error-icon">⚠</div>
-                <p id="errorMsg">Something went wrong.</p>
-                <button id="retryBtn" class="btn-outline">Try Again</button>
-            </div>
-
-            <div id="results" class="hidden">
-
-                <div class="card" id="matchHeaderCard"></div>
-
-                <div class="rtab-bar">
-                    <button class="rtab active" data-rtab="stats">Stats</button>
-                    <button class="rtab" data-rtab="predictions">Predictions</button>
-                    <button class="rtab" data-rtab="h2h">H2H</button>
-                    <button class="rtab" data-rtab="form">Form</button>
+                <!-- Loading -->
+                <div id="analyseLoading" class="progress-card hidden">
+                    <div class="progress-spinner"></div>
+                    <p id="loadingText" class="progress-text">Fetching data...</p>
+                    <div class="progress-bar-track"><div id="progFill" class="progress-bar-fill"></div></div>
+                    <p class="progress-note">Each match uses 1 API call</p>
                 </div>
 
-                <div id="statsPane" class="rpane">
-                    <div class="card" id="statsContent"></div>
+                <!-- Error -->
+                <div id="analyseError" class="error-banner hidden">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <p id="errorMsg">Something went wrong.</p>
+                    <button id="retryBtn" class="retry-btn">Try Again</button>
                 </div>
-                <div id="predictionsPane" class="rpane hidden">
-                    <div id="predictionsContent"></div>
-                </div>
-                <div id="h2hPane" class="rpane hidden">
-                    <div class="card" id="h2hContent"></div>
-                </div>
-                <div id="formPane" class="rpane hidden">
-                    <div class="card" id="formContent"></div>
+
+                <!-- Results -->
+                <div id="results" class="hidden">
+
+                    <div id="matchHeaderCard" class="match-hero-card"></div>
+
+                    <div class="results-tabs">
+                        <button class="rtab active" data-rtab="stats">📈 Stats</button>
+                        <button class="rtab" data-rtab="predictions">🎯 Predictions</button>
+                        <button class="rtab" data-rtab="h2h">⚔️ Head to Head</button>
+                        <button class="rtab" data-rtab="form">📋 Form</button>
+                    </div>
+
+                    <div id="statsPane" class="rpane"><div id="statsContent" class="results-card"></div></div>
+                    <div id="predictionsPane" class="rpane hidden"><div id="predictionsContent"></div></div>
+                    <div id="h2hPane" class="rpane hidden"><div id="h2hContent" class="results-card"></div></div>
+                    <div id="formPane" class="rpane hidden"><div id="formContent" class="results-card"></div></div>
+
                 </div>
 
             </div>
         </div>
 
     </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <span>⚽ PitchIQ · Football Stats &amp; Predictions</span>
+            <span>Data via API-Football · For entertainment purposes</span>
+        </div>
+    </footer>
+
 </div>
 
 <script src="js/api.js"></script>

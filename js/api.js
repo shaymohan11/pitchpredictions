@@ -12,7 +12,7 @@ const CACHE_TTL = {
 const LIVE_STATUSES = new Set(['1H', '2H', 'HT', 'ET', 'BT', 'P', 'SUSP', 'INT', 'LIVE']);
 const FIN_STATUSES  = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
 
-function getApiKey() { return localStorage.getItem('piq_key'); }
+function getApiKey() { return '7209033039fc2942d98ea61367b28a50'; }
 
 function ck(type, id) { return `piq_${type}_${id}`; }
 
