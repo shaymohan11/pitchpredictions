@@ -138,9 +138,8 @@ async function getTeamFixtures(teamId, count) {
 }
 
 function getCurrentSeason() {
-    const now = new Date();
-    // Football seasons: Aug-May = year that August falls in (e.g. 2025-26 season = 2025)
-    return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+    // Free plan only allows 2022-2024 — use 2024 as the most recent available
+    return 2024;
 }
 
 async function getFixtureStats(fixtureId) {
