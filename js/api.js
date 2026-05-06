@@ -93,11 +93,12 @@ async function searchTeams(query) {
 
 async function getTodayFixtures(force) {
     const today = new Date().toISOString().split('T')[0];
+    const dateKey = today.replace(/-/g, '');
     if (!force) {
         const cached = fromCache('TODAY', today);
         if (cached) return cached;
     }
-    const data = await apiFetch(`/fixtures?date=${today}&timezone=Europe/London`);
+    const data = await fetchAllESPNFixtures(dateKey);
     toCache('TODAY', today, data);
     return data;
 }
@@ -150,7 +151,74 @@ const ESPN_CODES = {
     '78':  'ger.1',  '135': 'ita.1',  '61':  'fra.1',
     '88':  'ned.1',  '94':  'por.1',  '179': 'sco.1',
     '203': 'tur.1',  '71':  'bra.1',  '253': 'usa.1',
+    '2':   'UEFA.CHAMPIONS',           '3':   'UEFA.EUROPA',
 };
+
+const ESPN_LEAGUE_NAMES = {
+    'eng.1': 'Premier League',   'eng.2': 'Championship',
+    'esp.1': 'La Liga',          'ger.1': 'Bundesliga',
+    'ita.1': 'Serie A',          'fra.1': 'Ligue 1',
+    'ned.1': 'Eredivisie',       'por.1': 'Primeira Liga',
+    'sco.1': 'Scottish Prem',    'tur.1': 'Süper Lig',
+    'bra.1': 'Brasileirão',      'usa.1': 'MLS',
+    'UEFA.CHAMPIONS': 'Champions League', 'UEFA.EUROPA': 'Europa League',
+};
+
+function espnEventToFixture(ev, leagueId, espnCode) {
+    const comp = ev.competitions?.[0];
+    if (!comp) return null;
+    const homeC = comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0];
+    const awayC = comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1];
+    if (!homeC || !awayC) return null;
+
+    const st    = comp.status?.type;
+    const state = st?.state || 'pre';
+    let short = 'NS', elapsed = null;
+
+    if (state === 'post') {
+        short = 'FT';
+    } else if (state === 'in') {
+        const detail = (st?.shortDetail || st?.description || '').toLowerCase();
+        const period = comp.status?.period || 1;
+        if (detail.includes('half time') || detail.includes('halftime') || detail === 'ht') {
+            short = 'HT';
+        } else if (period === 1) {
+            short = '1H';
+        } else if (period === 2) {
+            short = '2H';
+        } else {
+            short = 'LIVE';
+        }
+        const m = (comp.status?.displayClock || '').match(/^(\d+)/);
+        if (m) elapsed = parseInt(m[1], 10);
+    }
+
+    const pre = state === 'pre';
+    return {
+        fixture: { id: `espn_${ev.id}`, date: comp.date || ev.date, status: { short, elapsed } },
+        league:  { id: parseInt(leagueId, 10), name: ESPN_LEAGUE_NAMES[espnCode] || espnCode, country: '', logo: '' },
+        teams: {
+            home: { id: `espn_${homeC.team.id}`, name: homeC.team.displayName || homeC.team.name || '', logo: homeC.team.logo || homeC.team.logos?.[0]?.href || '' },
+            away: { id: `espn_${awayC.team.id}`, name: awayC.team.displayName || awayC.team.name || '', logo: awayC.team.logo || awayC.team.logos?.[0]?.href || '' },
+        },
+        goals: { home: pre ? null : parseInt(homeC.score || 0, 10), away: pre ? null : parseInt(awayC.score || 0, 10) },
+    };
+}
+
+async function fetchAllESPNFixtures(dateParam) {
+    const results = await Promise.allSettled(
+        Object.entries(ESPN_CODES).map(async ([leagueId, code]) => {
+            const url = `https://site.api.espn.com/apis/v2/sports/soccer/${code}/scoreboard?dates=${dateParam}&limit=100`;
+            const res = await fetch(url);
+            if (!res.ok) return [];
+            const json = await res.json();
+            return (json.events || [])
+                .map(ev => espnEventToFixture(ev, leagueId, code))
+                .filter(Boolean);
+        })
+    );
+    return results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
+}
 
 async function getStandingsESPN(leagueId) {
     const code = ESPN_CODES[String(leagueId)];
@@ -249,25 +317,19 @@ async function getUCLKnockout(leagueId) {
 
 async function getUpcomingFixtures() {
     const today = new Date();
-    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-    const key = tomorrow.toISOString().split('T')[0];
-    const cached = fromCache('UPCOMING', key);
+    const d1 = new Date(today); d1.setDate(today.getDate() + 1);
+    const d7 = new Date(today); d7.setDate(today.getDate() + 7);
+    const fmt = d => d.toISOString().split('T')[0].replace(/-/g, '');
+    const rangeKey = fmt(d1);
+    const cached = fromCache('UPCOMING', rangeKey);
     if (cached) return cached;
 
-    const dates = [1, 2, 3, 4, 5, 6, 7].map(n => {
-        const d = new Date(today); d.setDate(today.getDate() + n);
-        return d.toISOString().split('T')[0];
-    });
+    const data = await fetchAllESPNFixtures(`${fmt(d1)}-${fmt(d7)}`);
+    const nowMs = Date.now();
+    const future = data.filter(fx => new Date(fx.fixture.date).getTime() > nowMs);
 
-    const results = await Promise.allSettled(
-        dates.map(date => apiFetch(`/fixtures?date=${date}&timezone=Europe/London`))
-    );
-    const data = results
-        .filter(r => r.status === 'fulfilled')
-        .flatMap(r => r.value || []);
-
-    toCache('UPCOMING', key, data);
-    return data;
+    toCache('UPCOMING', rangeKey, future);
+    return future;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -156,7 +156,7 @@ function buildMatchCard(fx, type) {
 
     card.innerHTML = `
         <div class="mc-league">
-            <span class="mc-league-name">${fx.league.country} · ${fx.league.name}</span>
+            <span class="mc-league-name">${fx.league.country ? fx.league.country + ' · ' : ''}${fx.league.name}</span>
             ${statusHtml}
         </div>
         <div class="mc-body">
@@ -176,7 +176,17 @@ function buildMatchCard(fx, type) {
     return card;
 }
 
-function prefillTeams(home, away) {
+async function resolveTeam(t) {
+    if (!String(t.id).startsWith('espn_')) return t;
+    try {
+        const res = await searchTeams(t.name);
+        const match = res?.find(r => r.team.name.toLowerCase() === t.name.toLowerCase()) || res?.[0];
+        if (match) return { id: match.team.id, name: match.team.name, logo: match.team.logo || t.logo };
+    } catch (_) {}
+    return t;
+}
+
+async function prefillTeams(home, away) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('[data-tab="analyse"]').classList.add('active');
     ['live','saved'].forEach(id => {
@@ -185,8 +195,9 @@ function prefillTeams(home, away) {
     });
     document.getElementById('analyseTab').classList.remove('hidden');
     document.getElementById('analyseTab').classList.add('active');
-    setTeam(1, { id: home.id, name: home.name, logo: home.logo });
-    setTeam(2, { id: away.id, name: away.name, logo: away.logo });
+    const [t1, t2] = await Promise.all([resolveTeam(home), resolveTeam(away)]);
+    setTeam(1, t1);
+    setTeam(2, t2);
 }
 
 // ─── Standings ────────────────────────────────────────────────────────────────
