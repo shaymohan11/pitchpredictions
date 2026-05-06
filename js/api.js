@@ -41,9 +41,15 @@ async function apiFetch(endpoint) {
     const key = getApiKey();
     if (!key) throw new Error('API key not configured');
 
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-        headers: { 'x-rapidapi-key': key, 'x-rapidapi-host': API_HOST }
-    });
+    // Support both direct api-sports keys and RapidAPI keys
+    // Direct keys (from dashboard.api-football.com) use x-apisports-key
+    // RapidAPI keys use x-rapidapi-key + x-rapidapi-host
+    const isRapidApi = key.includes('jsn') || key.length < 40;
+    const headers = isRapidApi
+        ? { 'x-rapidapi-key': key, 'x-rapidapi-host': API_HOST }
+        : { 'x-apisports-key': key };
+
+    const res = await fetch(`${API_BASE}${endpoint}`, { headers });
 
     if (res.status === 401 || res.status === 403) throw new Error('Invalid API key — check Settings.');
     if (res.status === 429) throw new Error('Daily API limit hit (100/day on free plan). Try tomorrow.');
@@ -56,7 +62,8 @@ async function apiFetch(endpoint) {
     }
 
     // Track remaining calls
-    const remaining = res.headers.get('x-ratelimit-requests-remaining');
+    const remaining = res.headers.get('x-ratelimit-requests-remaining')
+        || res.headers.get('x-ratelimit-remaining');
     if (remaining !== null) {
         window._apiRemaining = parseInt(remaining, 10);
     }
