@@ -40,13 +40,37 @@ function toCache(type, id, data) {
 // ── ESPN helpers ──────────────────────────────────────────────────────────────
 
 const ESPN_LEAGUE_NAMES = {
-    'eng.1': 'Premier League',   'eng.2': 'Championship',
-    'esp.1': 'La Liga',          'ger.1': 'Bundesliga',
-    'ita.1': 'Serie A',          'fra.1': 'Ligue 1',
-    'ned.1': 'Eredivisie',       'por.1': 'Primeira Liga',
-    'sco.1': 'Scottish Prem',    'tur.1': 'Süper Lig',
-    'bra.1': 'Brasileirão',      'usa.1': 'MLS',
-    'UEFA.CHAMPIONS': 'Champions League', 'UEFA.EUROPA': 'Europa League',
+    'eng.1': 'Premier League',   'eng.2': 'Championship',    'eng.3': 'League One',
+    'esp.1': 'La Liga',          'esp.2': 'La Liga 2',
+    'ger.1': 'Bundesliga',       'ger.2': 'Bundesliga 2',
+    'ita.1': 'Serie A',          'ita.2': 'Serie B',
+    'fra.1': 'Ligue 1',          'fra.2': 'Ligue 2',
+    'ned.1': 'Eredivisie',       'ned.2': 'Eerste Divisie',
+    'por.1': 'Primeira Liga',
+    'sco.1': 'Scottish Prem',    'sco.2': 'Scottish Champ',
+    'tur.1': 'Süper Lig',
+    'bra.1': 'Brasileirão',      'bra.2': 'Série B',
+    'usa.1': 'MLS',
+    'UEFA.CHAMPIONS': 'Champions League',
+    'UEFA.EUROPA':    'Europa League',
+    'eng.league_cup':      'EFL Cup',
+    'esp.copa_del_rey':    'Copa del Rey',
+    'ger.dfb_pokal':       'DFB-Pokal',
+    'ita.coppa_italia':    'Coppa Italia',
+    'fra.coupe_de_france': 'Coupe de France',
+};
+
+// Extra competitions to fetch alongside domestic league (all-comp form)
+const EXTRA_COMPS = {
+    'eng.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA', 'eng.league_cup'],
+    'esp.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA', 'esp.copa_del_rey'],
+    'ger.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA', 'ger.dfb_pokal'],
+    'ita.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA', 'ita.coppa_italia'],
+    'fra.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA', 'fra.coupe_de_france'],
+    'ned.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA'],
+    'por.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA'],
+    'sco.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA'],
+    'tur.1': ['UEFA.CHAMPIONS', 'UEFA.EUROPA'],
 };
 
 const ESPN_CODES = {
@@ -55,6 +79,9 @@ const ESPN_CODES = {
     '88':  'ned.1',  '94':  'por.1',  '179': 'sco.1',
     '203': 'tur.1',  '71':  'bra.1',  '253': 'usa.1',
     '2':   'UEFA.CHAMPIONS',           '3':   'UEFA.EUROPA',
+    // secondary leagues (scoreboard only)
+    '41':  'ger.2',  '136': 'ita.2',  '66':  'fra.2',
+    '141': 'esp.2',  '119': 'ned.2',
 };
 
 function getScore(competitor) {
@@ -175,32 +202,42 @@ async function getFixturesForDate(isoDate, force) {
     return data;
 }
 
+async function fetchScheduleForComp(teamId, leagueCode, season) {
+    try {
+        const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueCode}/teams/${teamId}/schedule?season=${season}`;
+        const res = await fetch(url);
+        if (!res.ok) return [];
+        const json = await res.json();
+        return (json.events || [])
+            .filter(ev => ev.competitions?.[0]?.status?.type?.state === 'post')
+            .map(ev => espnScheduleEventToFixture(ev, leagueCode))
+            .filter(Boolean);
+    } catch (_) { return []; }
+}
+
 async function getTeamFixtures(teamId, count) {
     const cacheKey = `espn_${teamId}`;
     const cached = fromCache('FIXTURES', cacheKey);
-    if (cached && cached.length >= count) return cached.slice(0, Math.max(count * 3, 30));
+    if (cached && cached.length >= Math.min(count, 20)) return cached.slice(0, Math.max(count * 3, 30));
 
     const teamInfo = teamById(teamId);
-    if (!teamInfo) throw new Error('Team not found in our database. Try searching for a different spelling.');
+    if (!teamInfo) throw new Error('Team not found. Try a different spelling or check they are in a supported league.');
 
     const leagueCode = teamInfo.league;
-    let allFinished = cached ? [...cached] : [];
+    const extraComps = EXTRA_COMPS[leagueCode] || [];
+    const allComps   = [leagueCode, ...extraComps];
+
+    let allFinished = [];
 
     for (const season of [2025, 2024, 2023]) {
-        if (allFinished.length >= count * 2) break;
-        try {
-            const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueCode}/teams/${teamId}/schedule?season=${season}`;
-            const res = await fetch(url);
-            if (!res.ok) continue;
-            const json = await res.json();
-            const finished = (json.events || [])
-                .filter(ev => ev.competitions?.[0]?.status?.type?.state === 'post')
-                .map(ev => espnScheduleEventToFixture(ev, leagueCode))
-                .filter(Boolean);
-            // Avoid duplicates
-            const seenIds = new Set(allFinished.map(f => f.fixture.id));
-            allFinished = [...allFinished, ...finished.filter(f => !seenIds.has(f.fixture.id))];
-        } catch (_) {}
+        if (allFinished.length >= count * 3) break;
+        // Fetch all comps for this season in parallel
+        const results = await Promise.allSettled(
+            allComps.map(comp => fetchScheduleForComp(teamId, comp, season))
+        );
+        const newGames = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
+        const seenIds  = new Set(allFinished.map(f => f.fixture.id));
+        allFinished    = [...allFinished, ...newGames.filter(f => !seenIds.has(f.fixture.id))];
     }
 
     allFinished.sort((a, b) => new Date(b.fixture.date) - new Date(a.fixture.date));
@@ -213,24 +250,15 @@ async function getH2H(id1, id2) {
     const cached = fromCache('H2H', key);
     if (cached) return cached;
 
-    // Derive H2H from team1's cached schedule — look for games vs team2
-    const team1Fixtures = fromCache('FIXTURES', `espn_${id1}`) || [];
-    const h2h = team1Fixtures.filter(fx =>
-        fx.teams.home.id === id2 || fx.teams.away.id === id2 ||
+    // H2H comes from team1's full multi-competition schedule
+    let fixtures = fromCache('FIXTURES', `espn_${id1}`);
+    if (!fixtures) {
+        try { fixtures = await getTeamFixtures(id1, 30); } catch (_) { return []; }
+    }
+
+    const h2h = (fixtures || []).filter(fx =>
         String(fx.teams.home.id) === String(id2) || String(fx.teams.away.id) === String(id2)
     ).slice(0, 10);
-
-    // If nothing cached yet, fetch team1 schedule and filter
-    if (!h2h.length) {
-        try {
-            const fixtures = await getTeamFixtures(id1, 30);
-            const found = fixtures.filter(fx =>
-                String(fx.teams.home.id) === String(id2) || String(fx.teams.away.id) === String(id2)
-            ).slice(0, 10);
-            toCache('H2H', key, found);
-            return found;
-        } catch (_) { return []; }
-    }
 
     toCache('H2H', key, h2h);
     return h2h;
