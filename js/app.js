@@ -686,16 +686,11 @@ function renderHero(t1, t2, avgs1, avgs2, data1, data2, h2h) {
 // ─── Stats ────────────────────────────────────────────────────────────────────
 function renderStats(t1, t2, avgs1, avgs2) {
     const rows = [
-        { label: 'Goals Scored',      a: avgs1.goals,                           b: avgs2.goals },
-        { label: 'Goals Conceded',    a: avgs1.goalsConceded,                   b: avgs2.goalsConceded },
-        { label: 'Shots',             a: avgs1.shots,                           b: avgs2.shots },
-        { label: 'Shots on Target',   a: avgs1.shotsOnTarget,                   b: avgs2.shotsOnTarget },
-        { label: 'Corners',           a: avgs1.corners,                         b: avgs2.corners },
-        { label: 'Possession %',      a: avgs1.possession,                      b: avgs2.possession },
-        { label: 'Fouls',             a: avgs1.fouls,                           b: avgs2.fouls },
-        { label: 'Yellow Cards',      a: avgs1.yellowCards,                     b: avgs2.yellowCards },
-        { label: 'Clean Sheets %',    a: Math.round(avgs1.cleanSheetRate * 100), b: Math.round(avgs2.cleanSheetRate * 100) },
-        { label: 'Scored in Game %',  a: Math.round(avgs1.scoredRate * 100),    b: Math.round(avgs2.scoredRate * 100) }
+        { label: 'Goals Scored (avg)',  a: avgs1.goals,                            b: avgs2.goals },
+        { label: 'Goals Conceded (avg)',a: avgs1.goalsConceded,                    b: avgs2.goalsConceded },
+        { label: 'Clean Sheets %',      a: Math.round(avgs1.cleanSheetRate * 100), b: Math.round(avgs2.cleanSheetRate * 100) },
+        { label: 'Scored in Game %',    a: Math.round(avgs1.scoredRate * 100),     b: Math.round(avgs2.scoredRate * 100) },
+        { label: 'Win Rate %',          a: Math.round(avgs1.winRate * 100),        b: Math.round(avgs2.winRate * 100) },
     ];
     const fmt = v => typeof v === 'number' && v % 1 !== 0 ? v.toFixed(1) : v;
     document.getElementById('statsContent').innerHTML = `
@@ -785,12 +780,7 @@ function renderPredictions(t1, t2, preds) {
 
     // Market predictions
     const markets = [
-        { key: 'goals',         icon: '⚽', title: 'Total Goals' },
-        { key: 'corners',       icon: '🚩', title: 'Total Corners' },
-        { key: 'shots',         icon: '🎯', title: 'Total Shots' },
-        { key: 'shotsOnTarget', icon: '🥅', title: 'Shots on Target' },
-        { key: 'cards',         icon: '🟨', title: 'Total Cards' },
-        { key: 'fouls',         icon: '🦶', title: 'Total Fouls' }
+        { key: 'goals', icon: '⚽', title: 'Total Goals' },
     ];
     markets.forEach(m => {
         const p   = preds[m.key];
@@ -868,16 +858,15 @@ function renderForm(t1, t2, data1, data2) {
     const tbl = (team, data) => `
         <div class="form-section-title">${team.name} — Last ${data.length} Games</div>
         <table class="form-table">
-            <thead><tr><th>Date</th><th>Opponent</th><th>Res</th><th>GF</th><th>GA</th><th>Shots</th><th>Corners</th></tr></thead>
+            <thead><tr><th>Date</th><th>H/A</th><th>Opponent</th><th>Res</th><th>GF</th><th>GA</th></tr></thead>
             <tbody>
                 ${data.map(m => `<tr>
                     <td style="color:var(--text-muted)">${m.date}</td>
+                    <td style="color:var(--text-muted);font-size:10px">${m.isHome ? 'H' : 'A'}</td>
                     <td style="font-weight:600">${m.opponent}</td>
                     <td><span class="result-pip ${m.result}">${m.result}</span></td>
                     <td style="font-weight:700">${m.goalsScored}</td>
                     <td style="color:var(--text-muted)">${m.goalsConceded}</td>
-                    <td style="color:var(--text-muted)">${m.shots || '—'}</td>
-                    <td style="color:var(--text-muted)">${m.corners || '—'}</td>
                 </tr>`).join('')}
             </tbody>
         </table>`;

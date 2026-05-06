@@ -422,17 +422,7 @@ async function fetchTeamData(teamId, gameCount, venueFilter, onProgress) {
         const goalsScored   = (isHome ? fx.goals.home : fx.goals.away) ?? 0;
         const goalsConceded = (isHome ? fx.goals.away : fx.goals.home) ?? 0;
         const res           = matchResult(fx, teamId);
-        if (!res) continue; // skip null-score fixtures
-
-        let s = [];
-        try {
-            const statsArr = await getFixtureStats(fx.fixture.id);
-            const teamStats = statsArr?.find(ts => ts.team.id === teamId);
-            s = teamStats?.statistics || [];
-        } catch (_) { /* use empty stats — goals are enough for basic prediction */ }
-
-        const yellow = s.length ? extractStat(s, 'Yellow Cards') : 0;
-        const red    = s.length ? extractStat(s, 'Red Cards')    : 0;
+        if (!res) continue;
 
         matchStats.push({
             date:          fx.fixture.date.split('T')[0],
@@ -444,18 +434,7 @@ async function fetchTeamData(teamId, gameCount, venueFilter, onProgress) {
             goalsScored,
             goalsConceded,
             scored:        goalsScored > 0,
-            shots:         s.length ? extractStat(s, 'Total Shots')      : 0,
-            shotsOnTarget: s.length ? extractStat(s, 'Shots on Goal')    : 0,
-            corners:       s.length ? extractStat(s, 'Corner Kicks')     : 0,
-            fouls:         s.length ? extractStat(s, 'Fouls')            : 0,
-            yellowCards:   yellow,
-            redCards:      red,
-            cards:         yellow + red,
-            possession:    s.length ? extractPct(s,  'Ball Possession')  : 0,
-            passes:        s.length ? extractStat(s, 'Total passes')     : 0
         });
-
-        if (i < fixtures.length - 1) await sleep(150);
     }
 
     if (matchStats.length === 0)

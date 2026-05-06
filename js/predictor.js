@@ -86,28 +86,20 @@ function wPct(matches, pred) {
 function calcAverages(matches) {
     const n = matches.length;
     if (n === 0) return {
-        goals: 0, goalsConceded: 0, shots: 0, shotsOnTarget: 0, corners: 0,
-        fouls: 0, yellowCards: 0, redCards: 0, cards: 0, possession: 0,
-        scoredRate: 0, cleanSheetRate: 0,
+        goals: 0, goalsConceded: 0,
+        scoredRate: 0, cleanSheetRate: 0, winRate: 0,
         count: 0, wins: 0, draws: 0, losses: 0
     };
+    const wins   = matches.filter(m => m.result === 'W').length;
+    const draws  = matches.filter(m => m.result === 'D').length;
+    const losses = matches.filter(m => m.result === 'L').length;
     return {
         goals:          wAvg(matches, 'goalsScored'),
         goalsConceded:  wAvg(matches, 'goalsConceded'),
-        shots:          wAvg(matches, 'shots'),
-        shotsOnTarget:  wAvg(matches, 'shotsOnTarget'),
-        corners:        wAvg(matches, 'corners'),
-        fouls:          wAvg(matches, 'fouls'),
-        yellowCards:    wAvg(matches, 'yellowCards'),
-        redCards:       wAvg(matches, 'redCards'),
-        cards:          wAvg(matches, 'cards'),
-        possession:     wAvg(matches, 'possession'),
         scoredRate:     wPct(matches, m => m.goalsScored > 0),
         cleanSheetRate: wPct(matches, m => m.goalsConceded === 0),
-        count:  n,
-        wins:   matches.filter(m => m.result === 'W').length,
-        draws:  matches.filter(m => m.result === 'D').length,
-        losses: matches.filter(m => m.result === 'L').length
+        winRate:        wins / n,
+        count: n, wins, draws, losses
     };
 }
 
@@ -133,12 +125,7 @@ function predictMatch(avgs1, avgs2) {
 
     return {
         wdl,
-        goals:         buildStat('Total Goals',      'goals',    lH,                  lA,                  [0.5, 1.5, 2.5, 3.5, 4.5]),
-        corners:       buildStat('Total Corners',    'corners',  avgs1.corners,        avgs2.corners,        [7.5, 8.5, 9.5, 10.5, 11.5, 12.5]),
-        shots:         buildStat('Total Shots',      'shots',    avgs1.shots,          avgs2.shots,          [16.5, 18.5, 20.5, 22.5, 24.5, 26.5]),
-        shotsOnTarget: buildStat('Shots on Target',  'on target',avgs1.shotsOnTarget,  avgs2.shotsOnTarget,  [5.5, 6.5, 7.5, 8.5, 9.5, 10.5]),
-        cards:         buildStat('Total Cards',      'cards',    avgs1.cards,          avgs2.cards,          [1.5, 2.5, 3.5, 4.5, 5.5]),
-        fouls:         buildStat('Total Fouls',      'fouls',    avgs1.fouls,          avgs2.fouls,          [16.5, 18.5, 20.5, 22.5, 24.5]),
+        goals: buildStat('Total Goals', 'goals', lH, lA, [0.5, 1.5, 2.5, 3.5, 4.5]),
         btts: {
             label:          'Both Teams to Score',
             prob:           Math.round(avgs1.scoredRate * avgs2.scoredRate * 100),
