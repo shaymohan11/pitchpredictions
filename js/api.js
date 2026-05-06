@@ -95,12 +95,32 @@ async function getTodayFixtures(force = false) {
 }
 
 async function getTeamFixtures(teamId, count) {
-    const id = `${teamId}_${count}`;
+    // Free plan doesn't support &last= — fetch current season and slice client-side
+    const season = getCurrentSeason();
+    const id = `${teamId}_${season}`;
     const cached = fromCache('FIXTURES', id);
-    if (cached) return cached;
-    const data = await apiFetch(`/fixtures?team=${teamId}&last=${count}&status=FT`);
-    toCache('FIXTURES', id, data);
-    return data;
+    let data = cached;
+    if (!data) {
+        data = await apiFetch(`/fixtures?team=${teamId}&season=${season}&status=FT`);
+        // Also try previous season if not enough results
+        if (!data || data.length < count) {
+            try {
+                const prev = await apiFetch(`/fixtures?team=${teamId}&season=${season - 1}&status=FT`);
+                data = [...(data || []), ...(prev || [])];
+            } catch (_) {}
+        }
+        toCache('FIXTURES', id, data);
+    }
+    // Sort by date descending, return most recent `count` matches
+    return (data || [])
+        .sort((a, b) => new Date(b.fixture.date) - new Date(a.fixture.date))
+        .slice(0, Math.max(count * 3, 30)); // return extra so venue filter has enough to work with
+}
+
+function getCurrentSeason() {
+    const now = new Date();
+    // Football seasons: Aug-May = year that August falls in (e.g. 2025-26 season = 2025)
+    return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
 async function getFixtureStats(fixtureId) {
