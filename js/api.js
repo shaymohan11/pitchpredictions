@@ -66,7 +66,15 @@ async function apiFetch(endpoint, _attempt = 0) {
     const json = await res.json();
     if (json.errors) {
         const errs = Object.values(json.errors).filter(Boolean);
-        if (errs.length) throw new Error(errs.join('. '));
+        if (errs.length) {
+            const msg = errs.join('. ');
+            // Rate-limit error comes back as HTTP 200 — rotate and retry
+            if (msg.toLowerCase().includes('limit') || msg.toLowerCase().includes('requests')) {
+                rotateKey();
+                return apiFetch(endpoint, _attempt + 1);
+            }
+            throw new Error(msg);
+        }
     }
 
     const remaining = res.headers.get('x-ratelimit-requests-remaining')
