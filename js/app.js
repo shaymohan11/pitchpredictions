@@ -207,17 +207,15 @@ function buildMatchCard(fx, type) {
     return card;
 }
 
-async function resolveTeam(t) {
-    if (!String(t.id).startsWith('espn_')) return t;
-    try {
-        const res = await searchTeams(t.name);
-        const match = res?.find(r => r.team.name.toLowerCase() === t.name.toLowerCase()) || res?.[0];
-        if (match) return { id: match.team.id, name: match.team.name, logo: match.team.logo || t.logo };
-    } catch (_) {}
-    return t;
+function resolveTeam(t) {
+    // Match card IDs are now ESPN IDs prefixed with 'espn_' — strip and look up
+    const rawId = String(t.id).replace(/^espn_/, '');
+    const found = searchTeams(t.name)[0];
+    if (found) return { id: found.team.id, name: found.team.name, logo: found.team.logo || t.logo };
+    return { ...t, id: rawId };
 }
 
-async function prefillTeams(home, away) {
+function prefillTeams(home, away) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('[data-tab="analyse"]').classList.add('active');
     ['live','saved'].forEach(id => {
@@ -226,9 +224,8 @@ async function prefillTeams(home, away) {
     });
     document.getElementById('analyseTab').classList.remove('hidden');
     document.getElementById('analyseTab').classList.add('active');
-    const [t1, t2] = await Promise.all([resolveTeam(home), resolveTeam(away)]);
-    setTeam(1, t1);
-    setTeam(2, t2);
+    setTeam(1, resolveTeam(home));
+    setTeam(2, resolveTeam(away));
 }
 
 // ─── Standings ────────────────────────────────────────────────────────────────
@@ -404,17 +401,7 @@ function initRefreshBtn() {
 }
 
 // ─── API Usage ────────────────────────────────────────────────────────────────
-function updateApiUsage() {
-    const el  = document.getElementById('apiUsage');
-    if (!el) return;
-    const rem = window._apiRemaining;
-    if (rem === undefined || rem === null) { el.classList.add('hidden'); return; }
-    el.classList.remove('hidden');
-    el.textContent  = `${rem} calls left`;
-    el.className    = 'usage-pill';
-    if (rem <= 10) el.classList.add('critical');
-    else if (rem <= 30) el.classList.add('low');
-}
+function updateApiUsage() { /* no longer needed — ESPN has no rate limits */ }
 
 // ─── Analyse Tab ──────────────────────────────────────────────────────────────
 function initAnalyseTab() {
@@ -461,16 +448,15 @@ function initTeamSearch(n, inputId, dropId, pillId) {
         clearTimeout(state.searchTimers[`t${n}`]);
         const q = input.value.trim();
         if (q.length < 2) { drop.classList.add('hidden'); return; }
-        state.searchTimers[`t${n}`] = setTimeout(async () => {
+        state.searchTimers[`t${n}`] = setTimeout(() => {
             try {
-                drop.innerHTML = '<div class="drop-item" style="color:var(--text-muted)">Searching...</div>';
                 drop.classList.remove('hidden');
-                const results = await searchTeams(q);
+                const results = searchTeams(q);
                 renderDrop(results, drop, n, input);
             } catch (e) {
                 drop.innerHTML = `<div class="drop-item" style="color:var(--red)">${e.message}</div>`;
             }
-        }, 350);
+        }, 150);
     });
 
     document.addEventListener('click', e => {
