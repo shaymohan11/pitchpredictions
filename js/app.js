@@ -1,4 +1,4 @@
-/* PitchIQ — Main App */
+/* PitchPredictions — Main App */
 
 const state = {
     team1: null, team2: null,
@@ -8,19 +8,22 @@ const state = {
     nextRefresh: null,
     REFRESH_SECS: 60,
     lastFixtures: [],
-    searchTimers: { t1: null, t2: null }
+    searchTimers: { t1: null, t2: null },
+    currentT1: null, currentT2: null, currentPreds: null
 };
 
-// Big game league IDs (PL, UCL, UEL, World Cup, Euros, La Liga, Bundesliga, Serie A, Ligue 1)
-const BIG_LEAGUES = new Set([39, 2, 3, 1, 4, 140, 78, 135, 61]);
+const BIG_LEAGUES = new Set([39, 2, 3, 1, 4, 140, 78, 135, 61, 40, 48]);
 
-// ─── Init ────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
     initTabs();
     initLeagueFilter();
     initAnalyseTab();
     initRefreshBtn();
+    initAuthModal();
+    await initAuth();
     loadLiveTab();
+    loadUpcomingFixtures();
 });
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
@@ -30,10 +33,17 @@ function initTabs() {
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             const t = btn.dataset.tab;
-            document.getElementById('liveTab').classList.toggle('active', t === 'live');
-            document.getElementById('liveTab').classList.toggle('hidden', t !== 'live');
-            document.getElementById('analyseTab').classList.toggle('active', t === 'analyse');
-            document.getElementById('analyseTab').classList.toggle('hidden', t !== 'analyse');
+            ['live', 'analyse', 'saved'].forEach(id => {
+                const el = document.getElementById(`${id}Tab`);
+                if (el) {
+                    el.classList.toggle('active', id === t);
+                    el.classList.toggle('hidden',  id !== t);
+                }
+            });
+            if (t === 'saved') {
+                loadPinnedTeams();
+                loadSavedAnalyses();
+            }
         });
     });
 }
@@ -46,19 +56,20 @@ function initLeagueFilter() {
             btn.classList.add('active');
             state.activeLeague = btn.dataset.league;
             renderFixtures(state.lastFixtures);
+            loadStandings(btn.dataset.league);
         });
     });
 }
 
 // ─── Live Tab ─────────────────────────────────────────────────────────────────
-async function loadLiveTab(force = false) {
+async function loadLiveTab(force) {
     try {
         const fixtures = await getTodayFixtures(force);
         state.lastFixtures = fixtures || [];
         renderFixtures(state.lastFixtures);
         updateApiUsage();
     } catch (e) {
-        document.getElementById('liveList').innerHTML = `<div class="empty-row">${e.message}</div>`;
+        document.getElementById('liveList').innerHTML  = `<div class="empty-row">${e.message}</div>`;
         document.getElementById('todayList').innerHTML = '';
     }
     updateTicker(state.lastFixtures);
@@ -66,7 +77,7 @@ async function loadLiveTab(force = false) {
 }
 
 function renderFixtures(fixtures) {
-    const league = state.activeLeague;
+    const league   = state.activeLeague;
     const filtered = league === 'all' ? fixtures : fixtures.filter(fx => String(fx.league.id) === league);
 
     const live     = filtered.filter(fx => isLive(fx));
@@ -75,40 +86,38 @@ function renderFixtures(fixtures) {
 
     const liveEl  = document.getElementById('liveList');
     const todayEl = document.getElementById('todayList');
+    const now     = new Date();
 
-    const now = new Date();
     document.getElementById('todayDateLbl').textContent =
         now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
     liveEl.innerHTML  = live.length  ? '' : '<div class="empty-row">No live games right now</div>';
     todayEl.innerHTML = (upcoming.length + done.length) ? '' : '<div class="empty-row">No fixtures scheduled today</div>';
 
-    live.forEach(fx    => liveEl.appendChild(buildMatchCard(fx, 'live')));
+    live.forEach(fx     => liveEl.appendChild(buildMatchCard(fx, 'live')));
     upcoming.forEach(fx => todayEl.appendChild(buildMatchCard(fx, 'upcoming')));
-    done.forEach(fx    => todayEl.appendChild(buildMatchCard(fx, 'finished')));
+    done.forEach(fx     => todayEl.appendChild(buildMatchCard(fx, 'finished')));
 }
 
 function updateTicker(fixtures) {
-    const bar = document.getElementById('bigGamesTicker');
+    const bar   = document.getElementById('bigGamesTicker');
     const inner = document.getElementById('tickerInner');
-    const bigLive = fixtures.filter(fx => isLive(fx) && BIG_LEAGUES.has(fx.league.id));
+    const bigLive  = fixtures.filter(fx => isLive(fx) && BIG_LEAGUES.has(fx.league.id));
     const bigToday = fixtures.filter(fx => !isLive(fx) && BIG_LEAGUES.has(fx.league.id));
     const items = [...bigLive, ...bigToday];
 
-    if (items.length === 0) { bar.classList.add('hidden'); return; }
+    if (!items.length) { bar.classList.add('hidden'); return; }
     bar.classList.remove('hidden');
 
     const buildItem = fx => {
-        const isLv = isLive(fx);
-        const hg = fx.goals.home ?? '–', ag = fx.goals.away ?? '–';
-        const min = fx.fixture.status.elapsed;
-        const div = document.createElement('div');
+        const live = isLive(fx);
+        const div  = document.createElement('div');
         div.className = 'ticker-item';
-        div.innerHTML = isLv
+        div.innerHTML = live
             ? `<span class="ticker-team">${fx.teams.home.name}</span>
-               <span class="ticker-score">${hg} - ${ag}</span>
+               <span class="ticker-score">${fx.goals.home ?? '–'} - ${fx.goals.away ?? '–'}</span>
                <span class="ticker-team">${fx.teams.away.name}</span>
-               <span class="ticker-min">${min ? min+"'" : 'LIVE'}</span>
+               <span class="ticker-min">${fx.fixture.status.elapsed ? fx.fixture.status.elapsed+"'" : 'LIVE'}</span>
                <span class="ticker-league">${fx.league.name}</span>`
             : `<span class="ticker-team">${fx.teams.home.name}</span>
                <span class="ticker-score" style="color:rgba(255,255,255,0.5);font-size:11px"> vs </span>
@@ -121,32 +130,21 @@ function updateTicker(fixtures) {
 
     inner.innerHTML = '';
     items.forEach(fx => inner.appendChild(buildItem(fx)));
-    // Duplicate for seamless loop
     items.forEach(fx => inner.appendChild(buildItem(fx)));
-
-    // Reset animation
-    inner.style.animation = 'none';
-    inner.offsetHeight;
-    inner.style.animation = '';
+    inner.style.animation = 'none'; inner.offsetHeight; inner.style.animation = '';
 }
 
 function buildMatchCard(fx, type) {
     const card = document.createElement('div');
     card.className = `match-card fade-in${type === 'live' ? ' is-live' : ''}`;
-
     const home = fx.teams.home, away = fx.teams.away;
     const hg = fx.goals.home ?? '–', ag = fx.goals.away ?? '–';
     const min = fx.fixture.status.elapsed;
-    const status = fx.fixture.status.short;
 
-    let statusHtml = '';
-    if (type === 'live') {
-        statusHtml = `<span class="mc-live-badge"><span class="mc-live-dot"></span>${min ? min + "'" : status}</span>`;
-    } else if (type === 'finished') {
-        statusHtml = `<span class="mc-ft-badge">FT</span>`;
-    } else {
-        statusHtml = `<span class="mc-time-badge">${formatKickoff(fx)}</span>`;
-    }
+    let statusHtml;
+    if (type === 'live')        statusHtml = `<span class="mc-live-badge"><span class="mc-live-dot"></span>${min ? min+"'" : fx.fixture.status.short}</span>`;
+    else if (type === 'finished') statusHtml = `<span class="mc-ft-badge">FT</span>`;
+    else                          statusHtml = `<span class="mc-time-badge">${formatKickoff(fx)}</span>`;
 
     const scoreHtml = type === 'upcoming'
         ? `<div class="mc-kickoff">${formatKickoff(fx)}</div><div class="mc-vs">vs</div>`
@@ -170,7 +168,6 @@ function buildMatchCard(fx, type) {
         </div>
         <div class="mc-analyse-hint">Tap to analyse this match →</div>
     `;
-
     card.addEventListener('click', () => prefillTeams(home, away));
     return card;
 }
@@ -178,19 +175,92 @@ function buildMatchCard(fx, type) {
 function prefillTeams(home, away) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('[data-tab="analyse"]').classList.add('active');
-    document.getElementById('liveTab').classList.add('hidden');
+    ['live','saved'].forEach(id => {
+        document.getElementById(`${id}Tab`).classList.add('hidden');
+        document.getElementById(`${id}Tab`).classList.remove('active');
+    });
     document.getElementById('analyseTab').classList.remove('hidden');
+    document.getElementById('analyseTab').classList.add('active');
     setTeam(1, { id: home.id, name: home.name, logo: home.logo });
     setTeam(2, { id: away.id, name: away.name, logo: away.logo });
 }
 
-// ─── Countdown ────────────────────────────────────────────────────────────────
+// ─── Standings ────────────────────────────────────────────────────────────────
+async function loadStandings(leagueId) {
+    const el    = document.getElementById('standingsContent');
+    const label = document.getElementById('standingsLeagueLabel');
+    if (leagueId === 'all') {
+        el.innerHTML = '<div class="sb-empty">Select a league above to see standings</div>';
+        if (label) label.textContent = 'Select a league';
+        return;
+    }
+    el.innerHTML = '<div class="sb-empty">Loading...</div>';
+    try {
+        const data = await getStandings(leagueId);
+        const rows = data?.[0]?.league?.standings?.[0];
+        if (!rows || !rows.length) throw new Error('No data');
+        if (label) label.textContent = data[0].league.name;
+
+        el.innerHTML = `
+            <table class="standings-table">
+                <thead><tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr></thead>
+                <tbody>
+                    ${rows.slice(0, 10).map(r => `
+                        <tr>
+                            <td class="st-pos">${r.rank}</td>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:5px">
+                                    <img src="${r.team.logo}" width="14" height="14" style="object-fit:contain;flex-shrink:0" onerror="this.style.display='none'">
+                                    <span class="st-name">${r.team.name}</span>
+                                </div>
+                            </td>
+                            <td class="st-num">${r.all.played}</td>
+                            <td class="st-num" style="color:${r.goalsDiff >= 0 ? 'var(--green)' : 'var(--red)'}">${r.goalsDiff > 0 ? '+' : ''}${r.goalsDiff}</td>
+                            <td class="st-pts">${r.points}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (_) {
+        el.innerHTML = '<div class="sb-empty">Standings unavailable for this league on the free plan</div>';
+    }
+}
+
+// ─── Upcoming Sidebar ─────────────────────────────────────────────────────────
+async function loadUpcomingFixtures() {
+    const el = document.getElementById('upcomingContent');
+    try {
+        const fixtures = await getUpcomingFixtures();
+        const big = fixtures.filter(fx => BIG_LEAGUES.has(fx.league.id));
+        if (!big.length) { el.innerHTML = '<div class="sb-empty">No upcoming big league fixtures found</div>'; return; }
+        el.innerHTML = big.slice(0, 10).map(fx => {
+            const d   = new Date(fx.fixture.date);
+            const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+            return `
+                <div class="upcoming-item">
+                    <div class="upcoming-date">${day}</div>
+                    <div class="upcoming-teams">${fx.teams.home.name}<br><span style="color:var(--text-muted)">${fx.teams.away.name}</span></div>
+                    <div class="upcoming-time">${formatKickoff(fx)}</div>
+                </div>
+            `;
+        }).join('');
+        el.querySelectorAll('.upcoming-item').forEach((item, i) => {
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', () => prefillTeams(big[i].teams.home, big[i].teams.away));
+        });
+    } catch (_) {
+        el.innerHTML = '<div class="sb-empty">Upcoming fixtures unavailable</div>';
+    }
+}
+
+// ─── Countdown & Refresh ──────────────────────────────────────────────────────
 function scheduleNextRefresh() {
     clearInterval(state.countdownInterval);
     state.nextRefresh = Date.now() + state.REFRESH_SECS * 1000;
     state.countdownInterval = setInterval(() => {
         const rem = Math.max(0, Math.round((state.nextRefresh - Date.now()) / 1000));
-        const el = document.getElementById('countdown');
+        const el  = document.getElementById('countdown');
         if (el) el.textContent = rem + 's';
         if (rem === 0) { clearInterval(state.countdownInterval); loadLiveTab(true); }
     }, 1000);
@@ -202,13 +272,13 @@ function initRefreshBtn() {
 
 // ─── API Usage ────────────────────────────────────────────────────────────────
 function updateApiUsage() {
-    const el = document.getElementById('apiUsage');
+    const el  = document.getElementById('apiUsage');
     if (!el) return;
     const rem = window._apiRemaining;
     if (rem === undefined || rem === null) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
-    el.textContent = `${rem} calls left`;
-    el.className = 'usage-pill';
+    el.textContent  = `${rem} calls left`;
+    el.className    = 'usage-pill';
     if (rem <= 10) el.classList.add('critical');
     else if (rem <= 30) el.classList.add('low');
 }
@@ -283,7 +353,7 @@ function renderDrop(results, drop, n, input) {
     }
     results.slice(0, 10).forEach(r => {
         const team = r.team;
-        const div = document.createElement('div');
+        const div  = document.createElement('div');
         div.className = 'drop-item';
         div.innerHTML = `
             <img class="drop-logo" src="${team.logo}" alt="" onerror="this.style.display='none'">
@@ -335,10 +405,10 @@ async function runAnalysis() {
     try {
         setProgress(0, 'Fetching fixtures...');
         const [data1, data2] = await Promise.all([
-            fetchTeamData(t1.id, state.gameCount, state.venue, (i, total) =>
-                setProgress(Math.round((i / total) * 40), `Analysing ${t1.name}... (${i}/${total})`)),
-            fetchTeamData(t2.id, state.gameCount, state.venue, (i, total) =>
-                setProgress(40 + Math.round((i / total) * 40), `Analysing ${t2.name}... (${i}/${total})`))
+            fetchTeamData(t1.id, state.gameCount, state.venue, (i, tot) =>
+                setProgress(Math.round(i / tot * 40), `Analysing ${t1.name}... (${i}/${tot})`)),
+            fetchTeamData(t2.id, state.gameCount, state.venue, (i, tot) =>
+                setProgress(40 + Math.round(i / tot * 40), `Analysing ${t2.name}... (${i}/${tot})`))
         ]);
 
         setProgress(85, 'Fetching head-to-head...');
@@ -369,7 +439,11 @@ function renderResults(t1, t2, data1, data2, h2h) {
     const avgs2 = calcAverages(data2);
     const preds = predictMatch(avgs1, avgs2);
 
-    renderHero(t1, t2, avgs1, avgs2, data1, data2);
+    state.currentT1    = t1;
+    state.currentT2    = t2;
+    state.currentPreds = preds;
+
+    renderHero(t1, t2, avgs1, avgs2, data1, data2, h2h);
     renderStats(t1, t2, avgs1, avgs2);
     renderPredictions(t1, t2, preds);
     renderH2H(t1, t2, h2h);
@@ -381,53 +455,121 @@ function renderResults(t1, t2, data1, data2, h2h) {
         document.getElementById(`${id}Pane`).classList.toggle('hidden', id !== 'stats');
     });
 
+    // Save button
+    const saveBtn = document.getElementById('saveAnalysisBtn');
+    if (saveBtn) {
+        saveBtn.textContent = '💾 Save Analysis';
+        saveBtn.disabled    = false;
+        saveBtn.className   = 'save-btn';
+        saveBtn.onclick = async () => {
+            if (!getUser()) { openAuthModal('login'); return; }
+            try {
+                saveBtn.textContent = 'Saving...';
+                saveBtn.disabled    = true;
+                await saveAnalysis(t1, t2, {
+                    wdl: preds.wdl,
+                    goals: { predicted: preds.goals.predicted },
+                    btts:  { prob: preds.btts.prob }
+                });
+                saveBtn.textContent = '✓ Saved';
+                saveBtn.className   = 'save-btn saved';
+            } catch (e) {
+                saveBtn.textContent = '💾 Save Analysis';
+                saveBtn.disabled    = false;
+                alert('Could not save: ' + e.message);
+            }
+        };
+    }
+
     document.getElementById('results').classList.remove('hidden');
     document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function renderHero(t1, t2, avgs1, avgs2, data1, data2) {
-    const f1 = data1.slice(-5).map(m => m.result);
-    const f2 = data2.slice(-5).map(m => m.result);
+// ─── Hero ─────────────────────────────────────────────────────────────────────
+function renderHero(t1, t2, avgs1, avgs2, data1, data2, h2h) {
+    h2h = h2h || [];
+
+    const fmtDate = dateStr => {
+        const d = new Date(dateStr);
+        return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(2)}`;
+    };
+
+    let f1 = [], f2 = [], formLabel = 'Recent Form';
+    const h2hGames = h2h.filter(fx => fx.goals.home !== null && fx.goals.away !== null).slice(0, 5);
+
+    if (h2hGames.length > 0) {
+        formLabel = `Last ${h2hGames.length} H2H`;
+        h2hGames.forEach(fx => {
+            const isT1Home = fx.teams.home.id === t1.id;
+            const t1g = isT1Home ? fx.goals.home : fx.goals.away;
+            const t2g = isT1Home ? fx.goals.away : fx.goals.home;
+            let t1r, t2r;
+            if (t1g > t2g)      { t1r = 'W'; t2r = 'L'; }
+            else if (t1g < t2g) { t1r = 'L'; t2r = 'W'; }
+            else                { t1r = 'D'; t2r = 'D'; }
+            f1.push({ result: t1r, date: fx.fixture.date });
+            f2.push({ result: t2r, date: fx.fixture.date });
+        });
+    } else {
+        // fallback to each team's own recent form
+        f1 = data1.slice(0, 5).map(m => ({ result: m.result, date: m.date }));
+        f2 = data2.slice(0, 5).map(m => ({ result: m.result, date: m.date }));
+    }
+
+    const pipsHtml = arr => arr.map(item => `
+        <div class="form-pip-wrap">
+            <span class="form-pip ${item.result}">${item.result}</span>
+            <span class="form-pip-date">${fmtDate(item.date)}</span>
+        </div>
+    `).join('');
+
     document.getElementById('matchHeaderCard').innerHTML = `
         <div class="hero-inner">
             <div class="hero-team">
                 <img class="hero-logo" src="${t1.logo}" alt="${t1.name}" onerror="this.style.display='none'">
                 <div class="hero-name">${t1.name}</div>
-                <div class="hero-form">${f1.map(r => `<span class="form-pip ${r}">${r}</span>`).join('')}</div>
+                <div class="hero-form">${pipsHtml(f1)}</div>
                 <div class="hero-record">${avgs1.wins}W · ${avgs1.draws}D · ${avgs1.losses}L</div>
+                <button class="pin-team-btn" onclick="pinTeam(${JSON.stringify({ id: t1.id, name: t1.name, logo: t1.logo }).replace(/"/g,'&quot;')})">📌 Pin</button>
             </div>
-            <div class="hero-vs">VS</div>
+            <div class="hero-vs-wrap">
+                <div class="hero-vs">VS</div>
+                <div class="hero-form-label">${formLabel}</div>
+            </div>
             <div class="hero-team">
                 <img class="hero-logo" src="${t2.logo}" alt="${t2.name}" onerror="this.style.display='none'">
                 <div class="hero-name">${t2.name}</div>
-                <div class="hero-form">${f2.map(r => `<span class="form-pip ${r}">${r}</span>`).join('')}</div>
+                <div class="hero-form">${pipsHtml(f2)}</div>
                 <div class="hero-record">${avgs2.wins}W · ${avgs2.draws}D · ${avgs2.losses}L</div>
+                <button class="pin-team-btn" onclick="pinTeam(${JSON.stringify({ id: t2.id, name: t2.name, logo: t2.logo }).replace(/"/g,'&quot;')})">📌 Pin</button>
             </div>
         </div>
     `;
 }
 
+// ─── Stats ────────────────────────────────────────────────────────────────────
 function renderStats(t1, t2, avgs1, avgs2) {
     const rows = [
-        { label: 'Goals Scored',     a: avgs1.goals,         b: avgs2.goals },
-        { label: 'Goals Conceded',   a: avgs1.goalsConceded, b: avgs2.goalsConceded },
-        { label: 'Shots',            a: avgs1.shots,         b: avgs2.shots },
-        { label: 'Shots on Target',  a: avgs1.shotsOnTarget, b: avgs2.shotsOnTarget },
-        { label: 'Corners',          a: avgs1.corners,       b: avgs2.corners },
-        { label: 'Possession %',     a: avgs1.possession,    b: avgs2.possession },
-        { label: 'Fouls',            a: avgs1.fouls,         b: avgs2.fouls },
-        { label: 'Yellow Cards',     a: avgs1.yellowCards,   b: avgs2.yellowCards },
-        { label: 'Clean Sheets %',   a: Math.round(avgs1.cleanSheetRate*100), b: Math.round(avgs2.cleanSheetRate*100) },
-        { label: 'Scored in Game %', a: Math.round(avgs1.scoredRate*100),     b: Math.round(avgs2.scoredRate*100) },
+        { label: 'Goals Scored',      a: avgs1.goals,                           b: avgs2.goals },
+        { label: 'Goals Conceded',    a: avgs1.goalsConceded,                   b: avgs2.goalsConceded },
+        { label: 'Shots',             a: avgs1.shots,                           b: avgs2.shots },
+        { label: 'Shots on Target',   a: avgs1.shotsOnTarget,                   b: avgs2.shotsOnTarget },
+        { label: 'Corners',           a: avgs1.corners,                         b: avgs2.corners },
+        { label: 'Possession %',      a: avgs1.possession,                      b: avgs2.possession },
+        { label: 'Fouls',             a: avgs1.fouls,                           b: avgs2.fouls },
+        { label: 'Yellow Cards',      a: avgs1.yellowCards,                     b: avgs2.yellowCards },
+        { label: 'Clean Sheets %',    a: Math.round(avgs1.cleanSheetRate * 100), b: Math.round(avgs2.cleanSheetRate * 100) },
+        { label: 'Scored in Game %',  a: Math.round(avgs1.scoredRate * 100),    b: Math.round(avgs2.scoredRate * 100) }
     ];
+    const fmt = v => typeof v === 'number' && v % 1 !== 0 ? v.toFixed(1) : v;
     document.getElementById('statsContent').innerHTML = `
         <div class="stats-header"><span>${t1.name}</span><span>${t2.name}</span></div>
         ${rows.map(r => {
-            const total = (r.a + r.b) || 1;
-            const lp = Math.round(r.a / total * 100);
+            const tot = (r.a + r.b) || 1;
+            const lp  = Math.round(r.a / tot * 100);
             return `
             <div class="stat-row">
-                <span class="stat-num">${typeof r.a === 'number' && r.a % 1 !== 0 ? r.a.toFixed(1) : r.a}</span>
+                <span class="stat-num">${fmt(r.a)}</span>
                 <div class="stat-center">
                     <div class="stat-name">${r.label}</div>
                     <div class="stat-bar">
@@ -435,18 +577,60 @@ function renderStats(t1, t2, avgs1, avgs2) {
                         <div class="stat-bar-r"></div>
                     </div>
                 </div>
-                <span class="stat-num">${typeof r.b === 'number' && r.b % 1 !== 0 ? r.b.toFixed(1) : r.b}</span>
+                <span class="stat-num">${fmt(r.b)}</span>
             </div>`;
         }).join('')}
     `;
 }
 
+// ─── Predictions ──────────────────────────────────────────────────────────────
 function renderPredictions(t1, t2, preds) {
     const el = document.getElementById('predictionsContent');
     el.innerHTML = '';
 
+    // W/D/L outcome card (Dixon-Coles)
+    const wdl = preds.wdl;
+    const topIdx = [wdl.homeWin, wdl.draw, wdl.awayWin].indexOf(Math.max(wdl.homeWin, wdl.draw, wdl.awayWin));
+    const wdlDiv = document.createElement('div');
+    wdlDiv.className = 'pred-card';
+    wdlDiv.innerHTML = `
+        <div class="pred-card-title">🏆 Match Result — Dixon-Coles Model</div>
+        <div class="wdl-row">
+            <div class="wdl-box ${topIdx === 0 ? 'wdl-top' : ''}">
+                <div class="wdl-team">${t1.name.split(' ')[0]} Win</div>
+                <div class="wdl-pct">${wdl.homeWin}%</div>
+            </div>
+            <div class="wdl-box ${topIdx === 1 ? 'wdl-top' : ''}">
+                <div class="wdl-team">Draw</div>
+                <div class="wdl-pct">${wdl.draw}%</div>
+            </div>
+            <div class="wdl-box ${topIdx === 2 ? 'wdl-top' : ''}">
+                <div class="wdl-team">${t2.name.split(' ')[0]} Win</div>
+                <div class="wdl-pct">${wdl.awayWin}%</div>
+            </div>
+        </div>
+        <div class="pred-lines">
+            ${[
+                { label: t1.name.split(' ')[0], pct: wdl.homeWin },
+                { label: 'Draw',                 pct: wdl.draw },
+                { label: t2.name.split(' ')[0], pct: wdl.awayWin }
+            ].map(row => {
+                const cls = row.pct >= 50 ? 'high' : row.pct >= 30 ? 'medium' : 'low';
+                return `<div class="pred-line">
+                    <span class="pred-line-label">${row.label}</span>
+                    <div class="pred-line-track">
+                        <div class="pred-line-bar ${cls}" style="width:${Math.min(row.pct,100)}%">${row.pct >= 15 ? row.pct+'%' : ''}</div>
+                    </div>
+                    <span class="pred-line-pct">${row.pct}%</span>
+                </div>`;
+            }).join('')}
+        </div>
+        <div class="pred-model-note">Dixon-Coles model · Home advantage applied · Weighted recent form</div>
+    `;
+    el.appendChild(wdlDiv);
+
     // BTTS
-    const b = preds.btts;
+    const b   = preds.btts;
     const cls = b.prob >= 65 ? 'high' : b.prob >= 40 ? 'medium' : 'low';
     const bttsDiv = document.createElement('div');
     bttsDiv.className = 'btts-card';
@@ -463,17 +647,17 @@ function renderPredictions(t1, t2, preds) {
     `;
     el.appendChild(bttsDiv);
 
+    // Market predictions
     const markets = [
         { key: 'goals',         icon: '⚽', title: 'Total Goals' },
         { key: 'corners',       icon: '🚩', title: 'Total Corners' },
         { key: 'shots',         icon: '🎯', title: 'Total Shots' },
         { key: 'shotsOnTarget', icon: '🥅', title: 'Shots on Target' },
         { key: 'cards',         icon: '🟨', title: 'Total Cards' },
-        { key: 'fouls',         icon: '🦶', title: 'Total Fouls' },
+        { key: 'fouls',         icon: '🦶', title: 'Total Fouls' }
     ];
-
     markets.forEach(m => {
-        const p = preds[m.key];
+        const p   = preds[m.key];
         const div = document.createElement('div');
         div.className = 'pred-card';
         div.innerHTML = `
@@ -485,11 +669,11 @@ function renderPredictions(t1, t2, preds) {
             </div>
             <div class="pred-lines">
                 ${p.lines.map(l => {
-                    const cls = l.over >= 65 ? 'high' : l.over >= 40 ? 'medium' : 'low';
+                    const lc = l.over >= 65 ? 'high' : l.over >= 40 ? 'medium' : 'low';
                     return `<div class="pred-line">
                         <span class="pred-line-label">${l.label}</span>
                         <div class="pred-line-track">
-                            <div class="pred-line-bar ${cls}" style="width:${Math.min(l.over,100)}%">${l.over >= 15 ? l.over+'%' : ''}</div>
+                            <div class="pred-line-bar ${lc}" style="width:${Math.min(l.over,100)}%">${l.over >= 15 ? l.over+'%' : ''}</div>
                         </div>
                         <span class="pred-line-pct">${l.over}%</span>
                     </div>`;
@@ -500,9 +684,19 @@ function renderPredictions(t1, t2, preds) {
     });
 }
 
+// ─── H2H ─────────────────────────────────────────────────────────────────────
 function renderH2H(t1, t2, h2h) {
     const el = document.getElementById('h2hContent');
-    if (!h2h || !h2h.length) { el.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center">No head-to-head data available</div>'; return; }
+    if (!h2h || !h2h.length) {
+        el.innerHTML = `
+            <div class="no-h2h-notice">
+                <div class="no-h2h-icon">⚠️</div>
+                <div class="no-h2h-title">No Head-to-Head History Found</div>
+                <p class="no-h2h-text">These teams have no recorded meetings in the database. Predictions are based on each team's individual recent form only, which may reduce accuracy for this specific matchup.</p>
+            </div>
+        `;
+        return;
+    }
     let w = 0, d = 0, l = 0;
     h2h.forEach(fx => {
         const hg = fx.goals.home, ag = fx.goals.away;
@@ -533,6 +727,7 @@ function renderH2H(t1, t2, h2h) {
     `;
 }
 
+// ─── Form Table ───────────────────────────────────────────────────────────────
 function renderForm(t1, t2, data1, data2) {
     const tbl = (team, data) => `
         <div class="form-section-title">${team.name} — Last ${data.length} Games</div>
@@ -545,8 +740,8 @@ function renderForm(t1, t2, data1, data2) {
                     <td><span class="result-pip ${m.result}">${m.result}</span></td>
                     <td style="font-weight:700">${m.goalsScored}</td>
                     <td style="color:var(--text-muted)">${m.goalsConceded}</td>
-                    <td style="color:var(--text-muted)">${m.shots}</td>
-                    <td style="color:var(--text-muted)">${m.corners}</td>
+                    <td style="color:var(--text-muted)">${m.shots || '—'}</td>
+                    <td style="color:var(--text-muted)">${m.corners || '—'}</td>
                 </tr>`).join('')}
             </tbody>
         </table>`;

@@ -1,13 +1,13 @@
 {
-  "name": "PitchIQ",
-  "short_name": "PitchIQ",
-  "description": "Real-time football stats & predictions",
+  "name": "PitchPredictions",
+  "short_name": "PitchPredictions",
+  "description": "Real-time football stats & AI predictions",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#080d1a",
-  "theme_color": "#080d1a",
+  "background_color": "#f3f4f6",
+  "theme_color": "#1a5c2a",
   "icons": [
-    { "src": "https://via.placeholder.com/192x192/080d1a/00e676?text=⚡", "sizes": "192x192", "type": "image/png" },
-    { "src": "https://via.placeholder.com/512x512/080d1a/00e676?text=⚡", "sizes": "512x512", "type": "image/png" }
+    { "src": "https://via.placeholder.com/192x192/1a5c2a/ffffff?text=%E2%9A%BD", "sizes": "192x192", "type": "image/png" },
+    { "src": "https://via.placeholder.com/512x512/1a5c2a/ffffff?text=%E2%9A%BD", "sizes": "512x512", "type": "image/png" }
   ]
 }

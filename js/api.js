@@ -2,11 +2,13 @@ const API_HOST = 'v3.football.api-sports.io';
 const API_BASE = `https://${API_HOST}`;
 
 const CACHE_TTL = {
-    SEARCH:   7 * 24 * 60 * 60 * 1000,
-    TODAY:    60 * 1000,
-    FIXTURES: 12 * 60 * 60 * 1000,
-    H2H:      6 * 60 * 60 * 1000,
-    STATS:    null
+    SEARCH:    7 * 24 * 60 * 60 * 1000,
+    TODAY:     60 * 1000,
+    FIXTURES:  12 * 60 * 60 * 1000,
+    H2H:       6 * 60 * 60 * 1000,
+    STATS:     null,
+    STANDINGS: 6 * 60 * 60 * 1000,
+    UPCOMING:  30 * 60 * 1000
 };
 
 const LIVE_STATUSES = new Set(['1H', '2H', 'HT', 'ET', 'BT', 'P', 'SUSP', 'INT', 'LIVE']);
@@ -24,7 +26,6 @@ function getApiKey() { return API_KEYS[_keyIndex]; }
 function rotateKey() {
     _keyIndex = (_keyIndex + 1) % API_KEYS.length;
     localStorage.setItem('piq_key_idx', _keyIndex);
-    console.log(`[PitchIQ] Switched to API key ${_keyIndex + 1}/${API_KEYS.length}`);
 }
 
 function ck(type, id) { return `piq_${type}_${id}`; }
@@ -54,37 +55,24 @@ async function apiFetch(endpoint, _attempt = 0) {
     if (_attempt >= API_KEYS.length) throw new Error('All API keys exhausted for today. Try again tomorrow.');
 
     const key = getApiKey();
-    const headers = { 'x-apisports-key': key };
-    const res = await fetch(`${API_BASE}${endpoint}`, { headers });
+    const res = await fetch(`${API_BASE}${endpoint}`, { headers: { 'x-apisports-key': key } });
 
-    // Rate limited — rotate to next key and retry
-    if (res.status === 429) {
+    if (res.status === 429 || res.status === 401 || res.status === 403) {
         rotateKey();
         return apiFetch(endpoint, _attempt + 1);
     }
-
-    if (res.status === 401 || res.status === 403) {
-        rotateKey();
-        return apiFetch(endpoint, _attempt + 1);
-    }
-
     if (!res.ok) throw new Error(`API error ${res.status} — please try again.`);
 
     const json = await res.json();
     if (json.errors) {
         const errs = Object.values(json.errors).filter(Boolean);
-        if (errs.length) {
-            // Free plan parameter error — don't rotate, just throw
-            throw new Error(errs.join('. '));
-        }
+        if (errs.length) throw new Error(errs.join('. '));
     }
 
-    // Track remaining calls on current key
     const remaining = res.headers.get('x-ratelimit-requests-remaining')
         || res.headers.get('x-ratelimit-remaining');
     if (remaining !== null) {
         window._apiRemaining = parseInt(remaining, 10);
-        // Auto-rotate when current key is nearly empty
         if (window._apiRemaining <= 2) rotateKey();
     }
 
@@ -103,7 +91,7 @@ async function searchTeams(query) {
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-async function getTodayFixtures(force = false) {
+async function getTodayFixtures(force) {
     const today = new Date().toISOString().split('T')[0];
     if (!force) {
         const cached = fromCache('TODAY', today);
@@ -114,32 +102,28 @@ async function getTodayFixtures(force = false) {
     return data;
 }
 
+function getCurrentSeason() { return 2024; }
+
 async function getTeamFixtures(teamId, count) {
-    // Free plan doesn't support &last= — fetch current season and slice client-side
     const season = getCurrentSeason();
     const id = `${teamId}_${season}`;
     const cached = fromCache('FIXTURES', id);
     let data = cached;
     if (!data) {
         data = await apiFetch(`/fixtures?team=${teamId}&season=${season}&status=FT`);
-        // Also try previous season if not enough results
-        if (!data || data.length < count) {
+        // Fall back through previous seasons if not enough results
+        for (const prev of [season - 1, season - 2]) {
+            if (data && data.length >= count) break;
             try {
-                const prev = await apiFetch(`/fixtures?team=${teamId}&season=${season - 1}&status=FT`);
-                data = [...(data || []), ...(prev || [])];
+                const prevData = await apiFetch(`/fixtures?team=${teamId}&season=${prev}&status=FT`);
+                data = [...(data || []), ...(prevData || [])];
             } catch (_) {}
         }
         toCache('FIXTURES', id, data);
     }
-    // Sort by date descending, return most recent `count` matches
     return (data || [])
         .sort((a, b) => new Date(b.fixture.date) - new Date(a.fixture.date))
-        .slice(0, Math.max(count * 3, 30)); // return extra so venue filter has enough to work with
-}
-
-function getCurrentSeason() {
-    // Free plan only allows 2022-2024 — use 2024 as the most recent available
-    return 2024;
+        .slice(0, Math.max(count * 3, 30));
 }
 
 async function getFixtureStats(fixtureId) {
@@ -156,6 +140,39 @@ async function getH2H(id1, id2) {
     if (cached) return cached;
     const data = await apiFetch(`/fixtures/headtohead?h2h=${id1}-${id2}&last=10`);
     toCache('H2H', key, data);
+    return data;
+}
+
+async function getStandings(leagueId) {
+    const season = getCurrentSeason();
+    const key = `${leagueId}_${season}`;
+    const cached = fromCache('STANDINGS', key);
+    if (cached) return cached;
+    const data = await apiFetch(`/standings?league=${leagueId}&season=${season}`);
+    toCache('STANDINGS', key, data);
+    return data;
+}
+
+async function getUpcomingFixtures() {
+    const today = new Date();
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const key = tomorrow.toISOString().split('T')[0];
+    const cached = fromCache('UPCOMING', key);
+    if (cached) return cached;
+
+    const dates = [1, 2, 3].map(n => {
+        const d = new Date(today); d.setDate(today.getDate() + n);
+        return d.toISOString().split('T')[0];
+    });
+
+    const results = await Promise.allSettled(
+        dates.map(date => apiFetch(`/fixtures?date=${date}&timezone=Europe/London`))
+    );
+    const data = results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => r.value || []);
+
+    toCache('UPCOMING', key, data);
     return data;
 }
 
@@ -199,14 +216,15 @@ async function fetchTeamData(teamId, gameCount, venueFilter, onProgress) {
     const fetchCount = venueFilter !== 'all' ? gameCount * 3 : gameCount;
     let fixtures = await getTeamFixtures(teamId, Math.min(fetchCount, 30));
 
-    if (!fixtures || fixtures.length === 0) throw new Error('No recent match data found for this team.');
+    if (!fixtures || fixtures.length === 0)
+        throw new Error('No recent match data found for this team.');
 
     if (venueFilter === 'home') fixtures = fixtures.filter(fx => fx.teams.home.id === teamId);
     else if (venueFilter === 'away') fixtures = fixtures.filter(fx => fx.teams.away.id === teamId);
 
     fixtures = fixtures.slice(0, gameCount);
-
-    if (fixtures.length === 0) throw new Error(`No ${venueFilter} matches found — try "All".`);
+    if (fixtures.length === 0)
+        throw new Error(`No ${venueFilter} matches found — try "All".`);
 
     const matchStats = [];
 
@@ -214,49 +232,48 @@ async function fetchTeamData(teamId, gameCount, venueFilter, onProgress) {
         const fx = fixtures[i];
         if (onProgress) onProgress(i + 1, fixtures.length);
 
+        const isHome        = fx.teams.home.id === teamId;
+        const goalsScored   = (isHome ? fx.goals.home : fx.goals.away) ?? 0;
+        const goalsConceded = (isHome ? fx.goals.away : fx.goals.home) ?? 0;
+        const res           = matchResult(fx, teamId);
+        if (!res) continue; // skip null-score fixtures
+
+        let s = [];
         try {
             const statsArr = await getFixtureStats(fx.fixture.id);
-            const teamStats = statsArr?.find(s => s.team.id === teamId);
-            const isHome = fx.teams.home.id === teamId;
+            const teamStats = statsArr?.find(ts => ts.team.id === teamId);
+            s = teamStats?.statistics || [];
+        } catch (_) { /* use empty stats — goals are enough for basic prediction */ }
 
-            const goalsScored    = (isHome ? fx.goals.home : fx.goals.away) ?? 0;
-            const goalsConceded  = (isHome ? fx.goals.away : fx.goals.home) ?? 0;
+        const yellow = s.length ? extractStat(s, 'Yellow Cards') : 0;
+        const red    = s.length ? extractStat(s, 'Red Cards')    : 0;
 
-            if (teamStats?.statistics?.length > 0) {
-                const s = teamStats.statistics;
-                const yellow = extractStat(s, 'Yellow Cards');
-                const red    = extractStat(s, 'Red Cards');
-                const passes = extractStat(s, 'Total passes');
-
-                matchStats.push({
-                    date:          fx.fixture.date.split('T')[0],
-                    isHome,
-                    opponent:      isHome ? fx.teams.away.name : fx.teams.home.name,
-                    opponentLogo:  isHome ? fx.teams.away.logo : fx.teams.home.logo,
-                    competition:   fx.league.name,
-                    result:        matchResult(fx, teamId),
-                    goalsScored,
-                    goalsConceded,
-                    scored:        goalsScored > 0,
-                    shots:         extractStat(s, 'Total Shots'),
-                    shotsOnTarget: extractStat(s, 'Shots on Goal'),
-                    corners:       extractStat(s, 'Corner Kicks'),
-                    fouls:         extractStat(s, 'Fouls'),
-                    yellowCards:   yellow,
-                    redCards:      red,
-                    cards:         yellow + red,
-                    possession:    extractPct(s, 'Ball Possession'),
-                    passes
-                });
-            }
-        } catch (e) {
-            console.warn(`Skipping fixture ${fx.fixture.id}:`, e.message);
-        }
+        matchStats.push({
+            date:          fx.fixture.date.split('T')[0],
+            isHome,
+            opponent:      isHome ? fx.teams.away.name : fx.teams.home.name,
+            opponentLogo:  isHome ? fx.teams.away.logo : fx.teams.home.logo,
+            competition:   fx.league.name,
+            result:        res,
+            goalsScored,
+            goalsConceded,
+            scored:        goalsScored > 0,
+            shots:         s.length ? extractStat(s, 'Total Shots')      : 0,
+            shotsOnTarget: s.length ? extractStat(s, 'Shots on Goal')    : 0,
+            corners:       s.length ? extractStat(s, 'Corner Kicks')     : 0,
+            fouls:         s.length ? extractStat(s, 'Fouls')            : 0,
+            yellowCards:   yellow,
+            redCards:      red,
+            cards:         yellow + red,
+            possession:    s.length ? extractPct(s,  'Ball Possession')  : 0,
+            passes:        s.length ? extractStat(s, 'Total passes')     : 0
+        });
 
         if (i < fixtures.length - 1) await sleep(150);
     }
 
-    if (matchStats.length === 0) throw new Error('No stats available for this team. Try a different selection.');
+    if (matchStats.length === 0)
+        throw new Error('No match data found for this team. They may not have any completed games in the available seasons (2022–2024).');
 
     return matchStats;
 }
