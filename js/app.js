@@ -190,7 +190,7 @@ function prefillTeams(home, away) {
 }
 
 // ─── Standings ────────────────────────────────────────────────────────────────
-state.standingsRows  = 20;   // 3 or 20
+state.standingsRows  = 10;   // default collapsed
 state.standingsCache = null;
 
 async function loadStandings(leagueId) {
@@ -221,13 +221,13 @@ async function loadStandings(leagueId) {
 }
 
 function renderStandingsTable(data) {
-    const el   = document.getElementById('standingsContent');
-    const rows = data.rows.slice(0, state.standingsRows);
+    const el      = document.getElementById('standingsContent');
+    const total   = data.rows.length;
+    const rows    = data.rows.slice(0, state.standingsRows);
+    const canMore = state.standingsRows < total;
+    const canLess = state.standingsRows >= total;
+
     el.innerHTML = `
-        <div class="st-toggle-row">
-            <button class="st-toggle ${state.standingsRows === 3  ? 'active' : ''}" data-rows="3">Top 3</button>
-            <button class="st-toggle ${state.standingsRows === 20 ? 'active' : ''}" data-rows="20">All 20</button>
-        </div>
         <table class="standings-table">
             <thead><tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr></thead>
             <tbody>
@@ -247,12 +247,16 @@ function renderStandingsTable(data) {
                 `).join('')}
             </tbody>
         </table>
+        <div class="st-expand-row">
+            ${canMore
+                ? `<button class="st-expand-btn" data-action="more">View more ▾</button>`
+                : `<button class="st-expand-btn" data-action="less">View less ▴</button>`
+            }
+        </div>
     `;
-    el.querySelectorAll('.st-toggle').forEach(btn => {
-        btn.addEventListener('click', () => {
-            state.standingsRows = parseInt(btn.dataset.rows, 10);
-            if (state.standingsCache) renderStandingsTable(state.standingsCache);
-        });
+    el.querySelector('.st-expand-btn')?.addEventListener('click', e => {
+        state.standingsRows = e.target.dataset.action === 'more' ? total : 10;
+        if (state.standingsCache) renderStandingsTable(state.standingsCache);
     });
 }
 

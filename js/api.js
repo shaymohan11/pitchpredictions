@@ -185,43 +185,60 @@ async function getStandingsESPN(leagueId) {
     return result;
 }
 
-// ── UCL/UEL Knockout Bracket ──────────────────────────────────────────────────
+// ── UCL/UEL Knockout Bracket (via ESPN — no auth required) ───────────────────
 
-const KNOCKOUT_ROUNDS = ['Round of 16', 'Quarter-finals', 'Semi-finals', 'Final'];
+const KNOCKOUT_ROUNDS = ['Round of 16', 'Quarter-final', 'Semi-final', 'Final'];
 
 async function getUCLKnockout(leagueId) {
-    const season = getCurrentSeason();
-    const cacheKey = `bracket_${leagueId}_${season}`;
-    const cached = fromCache('STANDINGS', cacheKey);
+    const espnCode  = leagueId === '2' ? 'UEFA.CHAMPIONS' : 'UEFA.EUROPA';
+    const cacheKey  = `bracket_espn_${leagueId}`;
+    const cached    = fromCache('STANDINGS', cacheKey);
     if (cached) return cached;
 
-    const all = await apiFetch(`/fixtures?league=${leagueId}&season=${season}`);
-    if (!all || !all.length) return null;
+    // Fetch a wide window so we capture all knockout legs
+    const now   = new Date();
+    const from  = new Date(now); from.setMonth(from.getMonth() - 3);
+    const to    = new Date(now); to.setMonth(to.getMonth() + 2);
+    const fmt   = d => d.toISOString().slice(0,10).replace(/-/g,'');
+    const url   = `https://site.api.espn.com/apis/v2/sports/soccer/${espnCode}/scoreboard?dates=${fmt(from)}-${fmt(to)}&limit=100`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('ESPN fetch failed');
+    const json = await res.json();
 
     const byRound = {};
-    all.forEach(fx => {
-        const round = fx.league.round || '';
-        const matched = KNOCKOUT_ROUNDS.find(r => round.includes(r));
-        if (!matched) return;
-        if (!byRound[matched]) byRound[matched] = {};
+    (json.events || []).forEach(ev => {
+        const comp = ev.competitions?.[0];
+        if (!comp) return;
 
-        const pairKey = [fx.teams.home.id, fx.teams.away.id].sort().join('-');
+        // Determine round from event notes or season type description
+        const noteText = comp.notes?.map(n => n.text || '').join(' ') || '';
+        const matched  = KNOCKOUT_ROUNDS.find(r => noteText.toLowerCase().includes(r.toLowerCase()))
+                      || KNOCKOUT_ROUNDS.find(r => (ev.name||'').toLowerCase().includes(r.toLowerCase()))
+                      || null;
+        if (!matched) return;
+
+        const homeC = comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0];
+        const awayC = comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1];
+        if (!homeC || !awayC) return;
+
+        const pairKey = [homeC.team.id, awayC.team.id].sort().join('-');
+        if (!byRound[matched]) byRound[matched] = {};
         if (!byRound[matched][pairKey]) {
             byRound[matched][pairKey] = {
-                team1: fx.teams.home, team2: fx.teams.away,
+                team1: { name: homeC.team.displayName, logo: homeC.team.logo || homeC.team.logos?.[0]?.href || '' },
+                team2: { name: awayC.team.displayName, logo: awayC.team.logo || awayC.team.logos?.[0]?.href || '' },
                 agg1: 0, agg2: 0, played: false
             };
         }
         const pair = byRound[matched][pairKey];
-        if (fx.goals.home !== null && fx.goals.away !== null) {
-            const isHome1 = fx.teams.home.id === pair.team1.id;
-            pair.agg1 += isHome1 ? fx.goals.home : fx.goals.away;
-            pair.agg2 += isHome1 ? fx.goals.away : fx.goals.home;
-            pair.played = true;
+        if (comp.status?.type?.completed) {
+            pair.agg1   += parseInt(homeC.score || 0, 10);
+            pair.agg2   += parseInt(awayC.score || 0, 10);
+            pair.played  = true;
         }
     });
 
-    // Convert to ordered result, only rounds that have data
     const result = {};
     KNOCKOUT_ROUNDS.forEach(r => { if (byRound[r]) result[r] = Object.values(byRound[r]); });
 

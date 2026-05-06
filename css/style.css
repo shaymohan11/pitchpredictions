@@ -612,16 +612,15 @@ body {
 .fixtures-list { display: flex; flex-direction: column; gap: 4px; }
 .rpane { }
 
-/* ─── Standings Toggle ──────────────────────── */
-.st-toggle-row { display: flex; gap: 4px; margin-bottom: 8px; }
-.st-toggle {
-  background: var(--bg); border: 1px solid var(--border-dark);
-  color: var(--text-muted); font-size: 10px; font-weight: 700;
-  padding: 3px 10px; border-radius: 10px; cursor: pointer;
-  font-family: inherit; transition: all 0.15s;
+/* ─── Standings Expand ──────────────────────── */
+.st-expand-row { text-align: center; padding: 8px 0 2px; }
+.st-expand-btn {
+  background: none; border: none; color: var(--green);
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  font-family: inherit; padding: 2px 8px;
+  transition: opacity 0.15s;
 }
-.st-toggle:hover { border-color: var(--green); color: var(--green); }
-.st-toggle.active { background: var(--green); border-color: var(--green); color: #fff; }
+.st-expand-btn:hover { opacity: 0.7; }
 
 /* ─── UCL Bracket ───────────────────────────── */
 .ucl-bracket { display: flex; flex-direction: column; gap: 4px; }
