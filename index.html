@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="theme-color" content="#080d1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PitchIQ">
+    <link rel="manifest" href="manifest.json">
+    <title>PitchIQ · Football Stats</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- API Key Modal -->
+<div id="apiKeyModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-logo">
+            <div class="logo-mark">⚡</div>
+            <span class="logo-word">PitchIQ</span>
+        </div>
+        <p class="modal-tag">Real-time football stats &amp; predictions</p>
+        <div class="modal-sep"></div>
+        <p class="modal-inst">Connect your free API key to get started</p>
+        <div class="steps">
+            <div class="step"><span class="step-n">1</span><span>Sign up free at <strong>rapidapi.com</strong></span></div>
+            <div class="step"><span class="step-n">2</span><span>Search <strong>API-Football</strong> → subscribe (100 calls/day free)</span></div>
+            <div class="step"><span class="step-n">3</span><span>Paste your key below and hit Start</span></div>
+        </div>
+        <input type="text" id="apiKeyInput" class="key-input" placeholder="Paste RapidAPI key here..." autocomplete="off" spellcheck="false">
+        <button id="saveKeyBtn" class="btn-cta">Start →</button>
+    </div>
+</div>
+
+<!-- App Shell -->
+<div id="app" class="app hidden">
+
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="topbar-logo">
+                <span class="logo-mark sm">⚡</span>
+                <span class="logo-word">PitchIQ</span>
+            </div>
+            <div class="topbar-right">
+                <div id="apiUsage" class="api-badge hidden"></div>
+                <button id="refreshBtn" class="icon-btn" title="Refresh">&#x21bb;</button>
+                <button id="settingsBtn" class="icon-btn" title="Settings">&#9881;</button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="tab-bar">
+        <button class="tab active" data-tab="live">
+            <span class="tab-ic">📡</span><span class="tab-lbl">Live &amp; Today</span>
+        </button>
+        <button class="tab" data-tab="analyse">
+            <span class="tab-ic">📊</span><span class="tab-lbl">Analyse</span>
+        </button>
+    </nav>
+
+    <main class="main">
+
+        <!-- ══════════ LIVE TAB ══════════ -->
+        <div id="liveTab" class="tab-pane active">
+
+            <div class="filter-scroll-wrap">
+                <div class="filter-scroll" id="leagueFilter">
+                    <button class="fchip active" data-league="all">All</button>
+                    <button class="fchip" data-league="2">UCL</button>
+                    <button class="fchip" data-league="3">UEL</button>
+                    <button class="fchip" data-league="39">Premier League</button>
+                    <button class="fchip" data-league="40">Championship</button>
+                    <button class="fchip" data-league="45">FA Cup</button>
+                    <button class="fchip" data-league="48">League Cup</button>
+                    <button class="fchip" data-league="140">La Liga</button>
+                    <button class="fchip" data-league="78">Bundesliga</button>
+                    <button class="fchip" data-league="135">Serie A</button>
+                    <button class="fchip" data-league="61">Ligue 1</button>
+                    <button class="fchip" data-league="94">Primeira Liga</button>
+                    <button class="fchip" data-league="88">Eredivisie</button>
+                    <button class="fchip" data-league="203">Süper Lig</button>
+                    <button class="fchip" data-league="179">Scottish Prem</button>
+                    <button class="fchip" data-league="1">World Cup</button>
+                    <button class="fchip" data-league="4">Euro</button>
+                </div>
+            </div>
+
+            <section class="live-section">
+                <div class="section-hd">
+                    <div class="live-indicator">
+                        <span class="live-dot"></span>
+                        <span class="section-title">Live Now</span>
+                    </div>
+                    <div class="refresh-info">
+                        <span class="refresh-lbl">Refreshing in</span>
+                        <span id="countdown" class="countdown-badge">—</span>
+                    </div>
+                </div>
+                <div id="liveList" class="match-list">
+                    <div class="empty-msg">Loading...</div>
+                </div>
+            </section>
+
+            <section class="today-section">
+                <div class="section-hd">
+                    <span class="section-title">Today's Fixtures</span>
+                    <span id="todayDateLbl" class="section-sub"></span>
+                </div>
+                <div id="todayList" class="match-list">
+                    <div class="empty-msg">Loading...</div>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- ══════════ ANALYSE TAB ══════════ -->
+        <div id="analyseTab" class="tab-pane hidden">
+
+            <div class="card">
+                <h2 class="card-title">Match Setup</h2>
+
+                <div class="team-row">
+                    <div class="team-col">
+                        <label class="field-lbl">Home Team</label>
+                        <div class="search-wrap">
+                            <input type="text" id="team1Input" class="search-field" placeholder="Search team..." autocomplete="off">
+                            <div id="team1Drop" class="drop-menu hidden"></div>
+                        </div>
+                        <div id="team1Pill" class="pill-wrap hidden"></div>
+                    </div>
+                    <div class="vs-divider">VS</div>
+                    <div class="team-col">
+                        <label class="field-lbl">Away Team</label>
+                        <div class="search-wrap">
+                            <input type="text" id="team2Input" class="search-field" placeholder="Search team..." autocomplete="off">
+                            <div id="team2Drop" class="drop-menu hidden"></div>
+                        </div>
+                        <div id="team2Pill" class="pill-wrap hidden"></div>
+                    </div>
+                </div>
+
+                <div class="opts-grid">
+                    <div class="opt-group">
+                        <label class="field-lbl">Games to analyse</label>
+                        <div class="chip-row" id="gameCountChips">
+                            <button class="chip active" data-val="5">5</button>
+                            <button class="chip" data-val="10">10</button>
+                            <button class="chip" data-val="15">15</button>
+                            <button class="chip" data-val="20">20</button>
+                        </div>
+                    </div>
+                    <div class="opt-group">
+                        <label class="field-lbl">Venue filter</label>
+                        <div class="chip-row" id="venueChips">
+                            <button class="chip active" data-val="all">All</button>
+                            <button class="chip" data-val="home">Home only</button>
+                            <button class="chip" data-val="away">Away only</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="analyseBtn" class="btn-cta" disabled>Analyse Match</button>
+            </div>
+
+            <div id="analyseLoading" class="loading-card hidden">
+                <div class="spinner"></div>
+                <p id="loadingText">Fetching data...</p>
+                <div class="prog-track"><div id="progFill" class="prog-fill"></div></div>
+                <p class="loading-sub">Each match stat uses 1 API call</p>
+            </div>
+
+            <div id="analyseError" class="error-card hidden">
+                <div class="error-icon">⚠</div>
+                <p id="errorMsg">Something went wrong.</p>
+                <button id="retryBtn" class="btn-outline">Try Again</button>
+            </div>
+
+            <div id="results" class="hidden">
+
+                <div class="card" id="matchHeaderCard"></div>
+
+                <div class="rtab-bar">
+                    <button class="rtab active" data-rtab="stats">Stats</button>
+                    <button class="rtab" data-rtab="predictions">Predictions</button>
+                    <button class="rtab" data-rtab="h2h">H2H</button>
+                    <button class="rtab" data-rtab="form">Form</button>
+                </div>
+
+                <div id="statsPane" class="rpane">
+                    <div class="card" id="statsContent"></div>
+                </div>
+                <div id="predictionsPane" class="rpane hidden">
+                    <div id="predictionsContent"></div>
+                </div>
+                <div id="h2hPane" class="rpane hidden">
+                    <div class="card" id="h2hContent"></div>
+                </div>
+                <div id="formPane" class="rpane hidden">
+                    <div class="card" id="formContent"></div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/predictor.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
