@@ -102,7 +102,7 @@ async function getTodayFixtures(force) {
     return data;
 }
 
-function getCurrentSeason() { return 2024; }
+function getCurrentSeason() { return 2025; }
 
 async function getTeamFixtures(teamId, count) {
     const season = getCurrentSeason();
@@ -160,7 +160,7 @@ async function getUpcomingFixtures() {
     const cached = fromCache('UPCOMING', key);
     if (cached) return cached;
 
-    const dates = [1, 2, 3].map(n => {
+    const dates = [1, 2, 3, 4, 5, 6, 7].map(n => {
         const d = new Date(today); d.setDate(today.getDate() + n);
         return d.toISOString().split('T')[0];
     });

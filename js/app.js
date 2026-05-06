@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initAuth();
     loadLiveTab();
     loadUpcomingFixtures();
+    loadStandings('39'); // auto-load Premier League standings
 });
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
@@ -55,6 +56,9 @@ function initLeagueFilter() {
             document.querySelectorAll('#leagueFilter .lchip').forEach(c => c.classList.remove('active'));
             btn.classList.add('active');
             state.activeLeague = btn.dataset.league;
+            // Always switch to live tab so the user sees the updated standings + fixtures
+            const liveBtn = document.querySelector('[data-tab="live"]');
+            if (liveBtn && !liveBtn.classList.contains('active')) liveBtn.click();
             renderFixtures(state.lastFixtures);
             loadStandings(btn.dataset.league);
         });
@@ -234,20 +238,31 @@ async function loadUpcomingFixtures() {
         const fixtures = await getUpcomingFixtures();
         const big = fixtures.filter(fx => BIG_LEAGUES.has(fx.league.id));
         if (!big.length) { el.innerHTML = '<div class="sb-empty">No upcoming big league fixtures found</div>'; return; }
-        el.innerHTML = big.slice(0, 10).map(fx => {
+        const shown = big.slice(0, 20);
+        el.innerHTML = shown.map(fx => {
             const d   = new Date(fx.fixture.date);
             const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
             return `
                 <div class="upcoming-item">
                     <div class="upcoming-date">${day}</div>
-                    <div class="upcoming-teams">${fx.teams.home.name}<br><span style="color:var(--text-muted)">${fx.teams.away.name}</span></div>
+                    <div class="upcoming-teams">
+                        <div class="upcoming-team-row">
+                            <img src="${fx.teams.home.logo}" class="upcoming-logo" onerror="this.style.display='none'">
+                            <span>${fx.teams.home.name}</span>
+                        </div>
+                        <div class="upcoming-team-row muted">
+                            <img src="${fx.teams.away.logo}" class="upcoming-logo" onerror="this.style.display='none'">
+                            <span>${fx.teams.away.name}</span>
+                        </div>
+                        <div class="upcoming-league">${fx.league.name}</div>
+                    </div>
                     <div class="upcoming-time">${formatKickoff(fx)}</div>
                 </div>
             `;
         }).join('');
         el.querySelectorAll('.upcoming-item').forEach((item, i) => {
             item.style.cursor = 'pointer';
-            item.addEventListener('click', () => prefillTeams(big[i].teams.home, big[i].teams.away));
+            item.addEventListener('click', () => prefillTeams(shown[i].teams.home, shown[i].teams.away));
         });
     } catch (_) {
         el.innerHTML = '<div class="sb-empty">Upcoming fixtures unavailable</div>';
@@ -511,9 +526,12 @@ function renderHero(t1, t2, avgs1, avgs2, data1, data2, h2h) {
             f2.push({ result: t2r, date: fx.fixture.date });
         });
     } else {
-        // fallback to each team's own recent form
+        // fallback to each team's own recent form — equalise counts
         f1 = data1.slice(0, 5).map(m => ({ result: m.result, date: m.date }));
         f2 = data2.slice(0, 5).map(m => ({ result: m.result, date: m.date }));
+        const minLen = Math.min(f1.length, f2.length);
+        f1 = f1.slice(0, minLen);
+        f2 = f2.slice(0, minLen);
     }
 
     const pipsHtml = arr => arr.map(item => `
