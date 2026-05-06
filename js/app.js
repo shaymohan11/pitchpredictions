@@ -9,7 +9,8 @@ const state = {
     REFRESH_SECS: 60,
     lastFixtures: [],
     searchTimers: { t1: null, t2: null },
-    currentT1: null, currentT2: null, currentPreds: null
+    currentT1: null, currentT2: null, currentPreds: null,
+    viewDate: null  // ISO date string, null = today
 };
 
 const BIG_LEAGUES = new Set([39, 2, 3, 1, 4, 140, 78, 135, 61, 40, 48]);
@@ -18,6 +19,7 @@ const BIG_LEAGUES = new Set([39, 2, 3, 1, 4, 140, 78, 135, 61, 40, 48]);
 document.addEventListener('DOMContentLoaded', async () => {
     initTabs();
     initLeagueFilter();
+    initDayPicker();
     initAnalyseTab();
     initRefreshBtn();
     initAuthModal();
@@ -65,10 +67,39 @@ function initLeagueFilter() {
     });
 }
 
+// ─── Day Picker ───────────────────────────────────────────────────────────────
+function initDayPicker() {
+    const sel = document.getElementById('dayPicker');
+    const today = new Date();
+    const DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    for (let i = 0; i <= 7; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        const iso = d.toISOString().split('T')[0];
+        const opt = document.createElement('option');
+        opt.value = iso;
+        opt.textContent = i === 0
+            ? `Today  –  ${DAY[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`
+            : `${DAY[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+        sel.appendChild(opt);
+    }
+
+    sel.value = today.toISOString().split('T')[0];
+    sel.addEventListener('change', () => {
+        const todayIso = new Date().toISOString().split('T')[0];
+        state.viewDate = sel.value === todayIso ? null : sel.value;
+        loadLiveTab(true);
+    });
+}
+
 // ─── Live Tab ─────────────────────────────────────────────────────────────────
 async function loadLiveTab(force) {
     try {
-        const fixtures = await getTodayFixtures(force);
+        const fixtures = state.viewDate
+            ? await getFixturesForDate(state.viewDate, force)
+            : await getTodayFixtures(force);
         state.lastFixtures = fixtures || [];
         renderFixtures(state.lastFixtures);
         updateApiUsage();
@@ -92,10 +123,10 @@ function renderFixtures(fixtures) {
     const todayEl = document.getElementById('todayList');
     const now     = new Date();
 
-    document.getElementById('todayDateLbl').textContent =
-        now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    document.getElementById('dayPicker').value = state.viewDate || new Date().toISOString().split('T')[0];
 
-    liveEl.innerHTML  = live.length  ? '' : '<div class="empty-row">No live games right now</div>';
+    const isFuture = state.viewDate && state.viewDate > new Date().toISOString().split('T')[0];
+    liveEl.innerHTML  = live.length  ? '' : `<div class="empty-row">${isFuture ? 'No live games on this date' : 'No live games right now'}</div>`;
     todayEl.innerHTML = (upcoming.length + done.length) ? '' : '<div class="empty-row">No fixtures scheduled today</div>';
 
     live.forEach(fx     => liveEl.appendChild(buildMatchCard(fx, 'live')));

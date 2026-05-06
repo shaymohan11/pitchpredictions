@@ -166,6 +166,13 @@ body {
 .section-title-wrap { display: flex; align-items: center; gap: 8px; }
 .section-title { font-size: 16px; font-weight: 800; color: var(--text); }
 .section-date  { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.day-picker {
+  font-size: 12px; font-weight: 600; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px; cursor: pointer;
+  outline: none;
+}
+.day-picker:focus { border-color: var(--green); }
 .auto-refresh  { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
 .auto-refresh strong { color: var(--green); }
 

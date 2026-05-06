@@ -92,18 +92,20 @@ async function searchTeams(query) {
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 async function getTodayFixtures(force) {
-    const today = new Date().toISOString().split('T')[0];
-    const dateKey = today.replace(/-/g, '');
+    return getFixturesForDate(new Date().toISOString().split('T')[0], force);
+}
+
+async function getFixturesForDate(isoDate, force) {
     if (!force) {
-        const cached = fromCache('TODAY', today);
+        const cached = fromCache('TODAY', isoDate);
         if (cached) return cached;
     }
-    const data = await fetchAllESPNFixtures(dateKey);
-    toCache('TODAY', today, data);
+    const data = await fetchAllESPNFixtures(isoDate.replace(/-/g, ''));
+    toCache('TODAY', isoDate, data);
     return data;
 }
 
-function getCurrentSeason() { return 2025; }
+function getCurrentSeason() { return 2024; } // free plan covers 2022–2024
 
 async function getTeamFixtures(teamId, count) {
     const season = getCurrentSeason();
@@ -112,8 +114,7 @@ async function getTeamFixtures(teamId, count) {
     let data = cached;
     if (!data) {
         data = await apiFetch(`/fixtures?team=${teamId}&season=${season}&status=FT`);
-        // Fall back through previous seasons if not enough results
-        for (const prev of [season - 1, season - 2]) {
+        for (const prev of [2023, 2022]) {
             if (data && data.length >= count) break;
             try {
                 const prevData = await apiFetch(`/fixtures?team=${teamId}&season=${prev}&status=FT`);
