@@ -208,7 +208,7 @@ function espnEventToFixture(ev, leagueId, espnCode) {
 async function fetchAllESPNFixtures(dateParam) {
     const results = await Promise.allSettled(
         Object.entries(ESPN_CODES).map(async ([leagueId, code]) => {
-            const url = `https://site.api.espn.com/apis/v2/sports/soccer/${code}/scoreboard?dates=${dateParam}&limit=100`;
+            const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${code}/scoreboard?dates=${dateParam}&limit=100`;
             const res = await fetch(url);
             if (!res.ok) return [];
             const json = await res.json();
@@ -253,62 +253,83 @@ async function getStandingsESPN(leagueId) {
     return result;
 }
 
-// ── UCL/UEL Knockout Bracket (via ESPN — no auth required) ───────────────────
+// ── UCL/UEL Knockout Bracket (via ESPN site/v2 — no auth required) ───────────
 
-const KNOCKOUT_ROUNDS = ['Round of 16', 'Quarter-final', 'Semi-final', 'Final'];
+const SLUG_TO_ROUND = {
+    'round-of-16':  'Round of 16',
+    'quarterfinals': 'Quarter-finals',
+    'semifinals':    'Semi-finals',
+    'final':         'Final',
+};
+const ROUND_ORDER = ['Round of 16', 'Quarter-finals', 'Semi-finals', 'Final'];
 
 async function getUCLKnockout(leagueId) {
-    const espnCode  = leagueId === '2' ? 'UEFA.CHAMPIONS' : 'UEFA.EUROPA';
-    const cacheKey  = `bracket_espn_${leagueId}`;
-    const cached    = fromCache('STANDINGS', cacheKey);
+    const espnCode = leagueId === '2' ? 'UEFA.CHAMPIONS' : 'UEFA.EUROPA';
+    const cacheKey = `bracket_espn_${leagueId}`;
+    const cached   = fromCache('STANDINGS', cacheKey);
     if (cached) return cached;
 
-    // Fetch a wide window so we capture all knockout legs
-    const now   = new Date();
-    const from  = new Date(now); from.setMonth(from.getMonth() - 3);
-    const to    = new Date(now); to.setMonth(to.getMonth() + 2);
-    const fmt   = d => d.toISOString().slice(0,10).replace(/-/g,'');
-    const url   = `https://site.api.espn.com/apis/v2/sports/soccer/${espnCode}/scoreboard?dates=${fmt(from)}-${fmt(to)}&limit=100`;
+    const now  = new Date();
+    const from = new Date(now); from.setMonth(from.getMonth() - 3);
+    const to   = new Date(now); to.setMonth(to.getMonth() + 2);
+    const fmt  = d => d.toISOString().slice(0, 10).replace(/-/g, '');
 
-    const res = await fetch(url);
+    const res = await fetch(
+        `https://site.api.espn.com/apis/site/v2/sports/soccer/${espnCode}/scoreboard?dates=${fmt(from)}-${fmt(to)}&limit=100`
+    );
     if (!res.ok) throw new Error('ESPN fetch failed');
     const json = await res.json();
 
+    // Group legs by round and pair key
     const byRound = {};
     (json.events || []).forEach(ev => {
-        const comp = ev.competitions?.[0];
+        const round = SLUG_TO_ROUND[ev.season?.slug];
+        if (!round) return;
+
+        const comp  = ev.competitions?.[0];
         if (!comp) return;
-
-        // Determine round from event notes or season type description
-        const noteText = comp.notes?.map(n => n.text || '').join(' ') || '';
-        const matched  = KNOCKOUT_ROUNDS.find(r => noteText.toLowerCase().includes(r.toLowerCase()))
-                      || KNOCKOUT_ROUNDS.find(r => (ev.name||'').toLowerCase().includes(r.toLowerCase()))
-                      || null;
-        if (!matched) return;
-
         const homeC = comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0];
         const awayC = comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1];
         if (!homeC || !awayC) return;
 
         const pairKey = [homeC.team.id, awayC.team.id].sort().join('-');
-        if (!byRound[matched]) byRound[matched] = {};
-        if (!byRound[matched][pairKey]) {
-            byRound[matched][pairKey] = {
-                team1: { name: homeC.team.displayName, logo: homeC.team.logo || homeC.team.logos?.[0]?.href || '' },
-                team2: { name: awayC.team.displayName, logo: awayC.team.logo || awayC.team.logos?.[0]?.href || '' },
-                agg1: 0, agg2: 0, played: false
-            };
-        }
-        const pair = byRound[matched][pairKey];
-        if (comp.status?.type?.completed) {
-            pair.agg1   += parseInt(homeC.score || 0, 10);
-            pair.agg2   += parseInt(awayC.score || 0, 10);
-            pair.played  = true;
-        }
+        if (!byRound[round]) byRound[round] = {};
+        if (!byRound[round][pairKey]) byRound[round][pairKey] = { legs: [] };
+
+        byRound[round][pairKey].legs.push({
+            legNum:    comp.leg?.value || 1,
+            homeId:    homeC.team.id,
+            homeScore: parseInt(homeC.score || 0, 10),
+            awayScore: parseInt(awayC.score || 0, 10),
+            homeTeam:  { name: homeC.team.displayName, logo: homeC.team.logo || homeC.team.logos?.[0]?.href || '' },
+            awayTeam:  { name: awayC.team.displayName, logo: awayC.team.logo || awayC.team.logos?.[0]?.href || '' },
+            completed: comp.status?.type?.completed || false,
+        });
     });
 
+    // Compute correct per-team aggregates: team1 = home in leg1, agg1 = leg1 home + leg2 away
     const result = {};
-    KNOCKOUT_ROUNDS.forEach(r => { if (byRound[r]) result[r] = Object.values(byRound[r]); });
+    ROUND_ORDER.forEach(round => {
+        if (!byRound[round]) return;
+        const ties = Object.values(byRound[round]).map(({ legs }) => {
+            legs.sort((a, b) => a.legNum - b.legNum);
+            const l1 = legs[0];
+            if (!l1) return null;
+            const l2 = legs[1];
+
+            let agg1 = l1.completed ? l1.homeScore : 0;
+            let agg2 = l1.completed ? l1.awayScore : 0;
+            if (l2?.completed) { agg1 += l2.awayScore; agg2 += l2.homeScore; }
+
+            return {
+                team1:  l1.homeTeam,
+                team2:  l1.awayTeam,
+                agg1, agg2,
+                played: l1.completed || (l2?.completed ?? false),
+            };
+        }).filter(Boolean);
+        if (ties.length) result[round] = ties;
+    });
 
     if (!Object.keys(result).length) return null;
     toCache('STANDINGS', cacheKey, result);
