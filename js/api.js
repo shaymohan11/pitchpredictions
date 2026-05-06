@@ -143,14 +143,46 @@ async function getH2H(id1, id2) {
     return data;
 }
 
-async function getStandings(leagueId) {
-    const season = getCurrentSeason();
-    const key = `${leagueId}_${season}`;
-    const cached = fromCache('STANDINGS', key);
+// ── ESPN public standings (no auth required, always live) ────────────────────
+
+const ESPN_CODES = {
+    '39':  'eng.1',  '40':  'eng.2',  '140': 'esp.1',
+    '78':  'ger.1',  '135': 'ita.1',  '61':  'fra.1',
+    '88':  'ned.1',  '94':  'por.1',  '179': 'sco.1',
+    '203': 'tur.1',  '71':  'bra.1',  '253': 'usa.1',
+};
+
+async function getStandingsESPN(leagueId) {
+    const code = ESPN_CODES[String(leagueId)];
+    if (!code) return null;
+
+    const cacheKey = `espn_${code}`;
+    const cached = fromCache('STANDINGS', cacheKey);
     if (cached) return cached;
-    const data = await apiFetch(`/standings?league=${leagueId}&season=${season}`);
-    toCache('STANDINGS', key, data);
-    return data;
+
+    const res = await fetch(`https://site.api.espn.com/apis/v2/sports/soccer/${code}/standings`);
+    if (!res.ok) throw new Error('ESPN fetch failed');
+    const json = await res.json();
+
+    // ESPN response: json.standings.entries  OR  json.children[0].standings.entries
+    const standings = json.standings || json.children?.[0]?.standings;
+    if (!standings?.entries?.length) throw new Error('No data');
+
+    const leagueName = standings.displayName || json.name || code;
+    const rows = standings.entries.map((e, i) => {
+        const sv = name => e.stats?.find(s => s.name === name)?.value ?? 0;
+        return {
+            rank:     i + 1,
+            team:     { name: e.team.displayName, logo: e.team.logos?.[0]?.href || '' },
+            played:   sv('gamesPlayed'),
+            goalDiff: sv('pointDifferential'),
+            points:   sv('points'),
+        };
+    });
+
+    const result = { leagueName, rows };
+    toCache('STANDINGS', cacheKey, result);
+    return result;
 }
 
 async function getUpcomingFixtures() {

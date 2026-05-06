@@ -194,22 +194,24 @@ async function loadStandings(leagueId) {
     const el    = document.getElementById('standingsContent');
     const label = document.getElementById('standingsLeagueLabel');
     if (leagueId === 'all') {
-        el.innerHTML = '<div class="sb-empty">Select a league above to see standings</div>';
-        if (label) label.textContent = 'Select a league';
-        return;
+        // Default to Premier League when "All" is selected
+        return loadStandings('39');
     }
     el.innerHTML = '<div class="sb-empty">Loading...</div>';
     try {
-        const data = await getStandings(leagueId);
-        const rows = data?.[0]?.league?.standings?.[0];
-        if (!rows || !rows.length) throw new Error('No data');
-        if (label) label.textContent = data[0].league.name;
+        const data = await getStandingsESPN(leagueId);
+        if (!data) {
+            el.innerHTML = '<div class="sb-empty">No standings for this competition</div>';
+            if (label) label.textContent = '';
+            return;
+        }
+        if (label) label.textContent = data.leagueName;
 
         el.innerHTML = `
             <table class="standings-table">
                 <thead><tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr></thead>
                 <tbody>
-                    ${rows.slice(0, 10).map(r => `
+                    ${data.rows.map(r => `
                         <tr>
                             <td class="st-pos">${r.rank}</td>
                             <td>
@@ -218,16 +220,16 @@ async function loadStandings(leagueId) {
                                     <span class="st-name">${r.team.name}</span>
                                 </div>
                             </td>
-                            <td class="st-num">${r.all.played}</td>
-                            <td class="st-num" style="color:${r.goalsDiff >= 0 ? 'var(--green)' : 'var(--red)'}">${r.goalsDiff > 0 ? '+' : ''}${r.goalsDiff}</td>
+                            <td class="st-num">${r.played}</td>
+                            <td class="st-num" style="color:${r.goalDiff >= 0 ? 'var(--green)' : 'var(--red)'}">${r.goalDiff > 0 ? '+' : ''}${r.goalDiff}</td>
                             <td class="st-pts">${r.points}</td>
                         </tr>
                     `).join('')}
                 </tbody>
             </table>
         `;
-    } catch (_) {
-        el.innerHTML = '<div class="sb-empty">Standings unavailable for this league on the free plan</div>';
+    } catch (e) {
+        el.innerHTML = `<div class="sb-empty">Couldn't load standings</div>`;
     }
 }
 
