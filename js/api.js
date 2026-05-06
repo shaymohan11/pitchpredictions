@@ -12,7 +12,20 @@ const CACHE_TTL = {
 const LIVE_STATUSES = new Set(['1H', '2H', 'HT', 'ET', 'BT', 'P', 'SUSP', 'INT', 'LIVE']);
 const FIN_STATUSES  = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
 
-function getApiKey() { return '7209033039fc2942d98ea61367b28a50'; }
+const API_KEYS = [
+    '7209033039fc2942d98ea61367b28a50',
+    '6b80c2c24fddc73a2aa4891e9a73bd0f',
+    '7ef13602cdfb889dc6c9fbb20175f0fe'
+];
+let _keyIndex = parseInt(localStorage.getItem('piq_key_idx') || '0', 10) % API_KEYS.length;
+
+function getApiKey() { return API_KEYS[_keyIndex]; }
+
+function rotateKey() {
+    _keyIndex = (_keyIndex + 1) % API_KEYS.length;
+    localStorage.setItem('piq_key_idx', _keyIndex);
+    console.log(`[PitchIQ] Switched to API key ${_keyIndex + 1}/${API_KEYS.length}`);
+}
 
 function ck(type, id) { return `piq_${type}_${id}`; }
 
@@ -37,35 +50,42 @@ function toCache(type, id, data) {
     }
 }
 
-async function apiFetch(endpoint) {
+async function apiFetch(endpoint, _attempt = 0) {
+    if (_attempt >= API_KEYS.length) throw new Error('All API keys exhausted for today. Try again tomorrow.');
+
     const key = getApiKey();
-    if (!key) throw new Error('API key not configured');
-
-    // Support both direct api-sports keys and RapidAPI keys
-    // Direct keys (from dashboard.api-football.com) use x-apisports-key
-    // RapidAPI keys use x-rapidapi-key + x-rapidapi-host
-    const isRapidApi = key.includes('jsn') || key.length < 40;
-    const headers = isRapidApi
-        ? { 'x-rapidapi-key': key, 'x-rapidapi-host': API_HOST }
-        : { 'x-apisports-key': key };
-
+    const headers = { 'x-apisports-key': key };
     const res = await fetch(`${API_BASE}${endpoint}`, { headers });
 
-    if (res.status === 401 || res.status === 403) throw new Error('Invalid API key — check Settings.');
-    if (res.status === 429) throw new Error('Daily API limit hit (100/day on free plan). Try tomorrow.');
+    // Rate limited — rotate to next key and retry
+    if (res.status === 429) {
+        rotateKey();
+        return apiFetch(endpoint, _attempt + 1);
+    }
+
+    if (res.status === 401 || res.status === 403) {
+        rotateKey();
+        return apiFetch(endpoint, _attempt + 1);
+    }
+
     if (!res.ok) throw new Error(`API error ${res.status} — please try again.`);
 
     const json = await res.json();
     if (json.errors) {
         const errs = Object.values(json.errors).filter(Boolean);
-        if (errs.length) throw new Error(errs.join('. '));
+        if (errs.length) {
+            // Free plan parameter error — don't rotate, just throw
+            throw new Error(errs.join('. '));
+        }
     }
 
-    // Track remaining calls
+    // Track remaining calls on current key
     const remaining = res.headers.get('x-ratelimit-requests-remaining')
         || res.headers.get('x-ratelimit-remaining');
     if (remaining !== null) {
         window._apiRemaining = parseInt(remaining, 10);
+        // Auto-rotate when current key is nearly empty
+        if (window._apiRemaining <= 2) rotateKey();
     }
 
     return json.response;
