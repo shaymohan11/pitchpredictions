@@ -770,7 +770,7 @@ function renderPredictions(t1, t2, preds) {
     el.appendChild(dcDiv);
 
     // ── Total Goals ──
-    el.appendChild(buildMarketCard('⚽', 'Total Goals', preds.goals, t1n, t2n));
+    el.appendChild(buildMarketCard('⚽', 'Total Goals', preds.goals, t1n, t2n, false, true));
 
     // ── Goals by Half ──
     const halvesDiv = document.createElement('div');
@@ -804,8 +804,8 @@ function renderPredictions(t1, t2, preds) {
     // ── Shot & corner markets (estimated from goals data) ──
     el.appendChild(buildMarketCard('🎯', 'Total Shots',       preds.shots,         t1n, t2n, true));
     el.appendChild(buildMarketCard('🥅', 'Shots on Target',   preds.shotsOnTarget, t1n, t2n, true));
-    el.appendChild(buildMarketCard('🚩', 'Total Corners',     preds.corners,       t1n, t2n, true));
-    el.appendChild(buildMarketCard('🟨', 'Total Cards',       preds.cards,         t1n, t2n, true));
+    el.appendChild(buildMarketCard('🚩', 'Total Corners',     preds.corners,       t1n, t2n, true, true));
+    el.appendChild(buildMarketCard('🟨', 'Total Cards',       preds.cards,         t1n, t2n, true, true));
 }
 
 function buildHalfHtml(label, stat) {
@@ -825,9 +825,27 @@ function buildHalfHtml(label, stat) {
         </div>`;
 }
 
-function buildMarketCard(icon, title, p, t1n, t2n, estimated = false) {
+function buildMarketCard(icon, title, p, t1n, t2n, estimated = false, showUnder = false) {
     const div = document.createElement('div');
     div.className = 'pred-card';
+
+    const linesHtml = p.lines.map(l => {
+        const oc = l.over >= 65 ? 'high' : l.over >= 40 ? 'medium' : 'low';
+        const overRow = `<div class="pred-line">
+            <span class="pred-line-label">${l.label}</span>
+            <div class="pred-line-track"><div class="pred-line-bar ${oc}" style="width:${Math.min(l.over,100)}%">${l.over >= 15 ? l.over+'%' : ''}</div></div>
+            <span class="pred-line-pct">${l.over}%</span>
+        </div>`;
+        if (!showUnder) return overRow;
+        const uc = l.under >= 65 ? 'high' : l.under >= 40 ? 'medium' : 'low';
+        const underRow = `<div class="pred-line pred-line-under">
+            <span class="pred-line-label pred-lbl-under">${l.label.replace('Over', 'Under')}</span>
+            <div class="pred-line-track"><div class="pred-line-bar pred-bar-under ${uc}" style="width:${Math.min(l.under,100)}%">${l.under >= 15 ? l.under+'%' : ''}</div></div>
+            <span class="pred-line-pct pred-pct-under">${l.under}%</span>
+        </div>`;
+        return `<div class="ou-pair">${overRow}${underRow}</div>`;
+    }).join('');
+
     div.innerHTML = `
         <div class="pred-card-title">${icon} ${title}</div>
         <div class="pred-avgs">
@@ -836,14 +854,7 @@ function buildMarketCard(icon, title, p, t1n, t2n, estimated = false) {
             <div class="pred-avg-box"><div class="pred-avg-val">${p.avgTeam2}</div><div class="pred-avg-lbl">${t2n}</div></div>
         </div>
         <div class="pred-lines">
-            ${p.lines.map(l => {
-                const c = l.over >= 65 ? 'high' : l.over >= 40 ? 'medium' : 'low';
-                return `<div class="pred-line">
-                    <span class="pred-line-label">${l.label}</span>
-                    <div class="pred-line-track"><div class="pred-line-bar ${c}" style="width:${Math.min(l.over,100)}%">${l.over >= 15 ? l.over+'%' : ''}</div></div>
-                    <span class="pred-line-pct">${l.over}%</span>
-                </div>`;
-            }).join('')}
+            ${linesHtml}
         </div>
         ${estimated ? '<div class="pred-model-note">Estimated from goals data — no direct shot/corner/card history</div>' : ''}`;
     return div;

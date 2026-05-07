@@ -406,6 +406,18 @@ body {
 .pred-line-bar.low    { background: var(--text-light); }
 .pred-line-pct { font-size: 12px; font-weight: 800; width: 38px; text-align: right; color: var(--text); }
 
+/* ─── Over / Under pairs ─────────────────────── */
+.ou-pair { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
+.ou-pair:last-child { margin-bottom: 0; }
+.pred-lines:has(.ou-pair) { gap: 0; }
+.pred-line-under { opacity: 0.82; }
+.pred-lbl-under { color: var(--text-light) !important; }
+.pred-pct-under { color: var(--text-muted) !important; }
+.pred-bar-under { background: #5a8fc7; }
+.pred-bar-under.high   { background: #3a75b5; }
+.pred-bar-under.medium { background: #6b9fd4; }
+.pred-bar-under.low    { background: #9ab8d4; }
+
 /* ─── Goals by Half ─────────────────────────── */
 .halves-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding-top: 8px; }
 .half-label {

@@ -143,7 +143,7 @@ function predictMatch(avgs1, avgs2) {
             drawOrAway: wdl.draw + wdl.awayWin,
             homeOrAway: wdl.homeWin + wdl.awayWin
         },
-        goals:           buildStat('Total Goals',       'goals', lH,                    lA,                    [0.5, 1.5, 2.5, 3.5, 4.5]),
+        goals:           buildStat('Total Goals',       'goals', lH,                    lA,                    [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]),
         goalsFirstHalf:  buildStat('First Half Goals',  'goals', lH * FH_SHARE,          lA * FH_SHARE,          [0.5, 1.5]),
         goalsSecondHalf: buildStat('Second Half Goals', 'goals', lH * (1 - FH_SHARE),    lA * (1 - FH_SHARE),    [0.5, 1.5, 2.5]),
         shots:           buildStat('Total Shots',       'shots', shotsH,                 shotsA,                 [18.5, 21.5, 24.5, 27.5, 30.5]),
