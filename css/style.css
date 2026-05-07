@@ -674,22 +674,85 @@ body {
 .payment-toast.hidden { display: none !important; }
 
 /* ─── Responsive ────────────────────────────── */
-@media (max-width: 1200px) { .three-col { grid-template-columns: 280px 1fr; } .sidebar-col:last-child { display: none; } }
+@media (max-width: 1200px) { .three-col { grid-template-columns: 260px 1fr; } .sidebar-col:last-child { display: none; } }
 @media (max-width: 900px)  { .three-col { grid-template-columns: 1fr; } .sidebar-col { position: static; min-height: 0; } }
-@media (max-width: 640px)  {
-  .three-col { padding: 12px; gap: 12px; }
-  .header-nav .nav-btn { padding: 8px 10px; font-size: 12px; }
-  .team-picker-row { grid-template-columns: 1fr; }
-  .vs-badge { display: none; }
-  .options-row { flex-direction: column; gap: 16px; }
-  .btts-grid { grid-template-columns: repeat(2, 1fr); }
-  .pred-avgs { grid-template-columns: 1fr 1fr; }
-  .site-footer { flex-direction: column; gap: 4px; text-align: center; }
+
+/* ── Tablet (900px) ───────────────────────────── */
+@media (max-width: 900px) {
+  .three-col { padding: 16px; gap: 14px; }
+  .sidebar-col { display: none; }          /* hide sidebars — show centre only */
+}
+
+/* ── Mobile (640px) ───────────────────────────── */
+@media (max-width: 640px) {
+  /* Prevent horizontal overflow */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+
+  /* Header */
+  .header-inner { padding: 0 12px; gap: 8px; height: 52px; }
+  .logo-ball { font-size: 20px; }
+  .logo-name { font-size: 14px; }
+  .logo-tag  { display: none; }
+  .header-nav { gap: 2px; }
+  .nav-btn { padding: 6px 8px; font-size: 11px; gap: 3px; }
+  .nav-ic  { font-size: 13px; }
+  #apiUsage { display: none; }             /* hide usage pill on mobile */
+  .refresh-btn .refresh-label { display: none; } /* hide "Refresh" text */
+  .refresh-btn { padding: 6px 10px; }
+
+  /* League chips */
+  .league-chips { padding: 8px 12px; gap: 5px; }
+
+  /* Three-col */
+  .three-col { padding: 10px; gap: 10px; }
+
+  /* Match cards */
+  .mc-logo { width: 28px; height: 28px; }
   .mc-name { font-size: 12px; }
-  .analyse-setup-card { padding: 20px 16px; }
-  .modal-card { padding: 28px 20px; }
-  .setup-header { flex-direction: column; }
-  .wdl-row { gap: 4px; }
+  .mc-score { font-size: 22px; }
+  .mc-body  { padding: 10px 12px; gap: 8px; }
+  .mc-score-wrap { min-width: 64px; }
+  .mc-kickoff { font-size: 15px; }
+
+  /* Analyse */
+  .analyse-wrap { padding: 12px; }
+  .analyse-setup-card { padding: 18px 14px; }
+  .team-picker-row { grid-template-columns: 1fr; gap: 10px; }
+  .vs-badge { display: none; }
+  .options-row { flex-direction: column; gap: 14px; }
+  .setup-header { flex-direction: column; gap: 8px; }
+  .card-heading { font-size: 17px; }
+
+  /* Results */
+  .hero-logo { width: 52px; height: 52px; }
+  .hero-name { font-size: 13px; }
+  .wdl-row { gap: 5px; }
+  .wdl-pct { font-size: 24px; }
+  .btts-grid { grid-template-columns: repeat(2, 1fr); }
+  .btts-pct  { font-size: 48px; }
+  .pred-avgs { grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+  .pred-avg-val { font-size: 17px; }
+  .halves-grid { grid-template-columns: 1fr; gap: 14px; }
+  .pred-card { padding: 14px 14px; }
+  .results-card { padding: 14px; }
+  .match-hero-card { padding: 18px 14px; }
+  .h2h-record { gap: 5px; }
+
+  /* Saved tab grid */
+  .saved-analyses-grid { grid-template-columns: 1fr; }
+  .pinned-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
+
+  /* Footer */
+  .site-footer { flex-direction: column; gap: 4px; text-align: center; }
+
+  /* Auth modal */
+  .modal-card { padding: 28px 18px; }
+
+  /* Subscription popup */
+  .sub-popup-inner { border-radius: 18px; }
+  .sub-price-amount { font-size: 44px; }
+  .sub-features { margin: 0 14px 18px; }
+  .sub-pay-btn { width: calc(100% - 28px); margin: 0 14px 10px; }
 }
 
 /* ─── Animations ────────────────────────────── */
