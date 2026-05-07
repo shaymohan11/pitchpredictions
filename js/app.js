@@ -165,9 +165,18 @@ function updateTicker(fixtures) {
         return div;
     };
 
+    // Build one copy first to measure real pixel width
     inner.innerHTML = '';
     items.forEach(fx => inner.appendChild(buildItem(fx)));
-    items.forEach(fx => inner.appendChild(buildItem(fx)));
+    const singleW = inner.scrollWidth;
+
+    // Fill enough copies so the strip is always 3× wider than the viewport (no gaps)
+    const copies = Math.max(2, Math.ceil((window.innerWidth * 3) / singleW));
+    for (let i = 0; i < copies; i++) items.forEach(fx => inner.appendChild(buildItem(fx)));
+
+    // Speed ~80 px/s — animate exactly one set width so loop is seamless
+    inner.style.setProperty('--tw', `-${singleW}px`);
+    inner.style.animationDuration = `${Math.max(8, singleW / 80)}s`;
     inner.style.animation = 'none'; inner.offsetHeight; inner.style.animation = '';
 }
 

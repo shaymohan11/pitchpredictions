@@ -3,7 +3,7 @@
 const VIP_EMAIL  = 'orevolt321@gmail.com'; // lowercase — Google OAuth normalises emails
 const FREE_LIMIT = 3;
 const PRO_LIMIT  = 20;
-const STRIPE_LINK = '#'; // fill in tomorrow after Stripe setup
+const CHECKOUT_URL = 'https://bzyvjpujyxikhyfmqevt.supabase.co/functions/v1/create-checkout';
 
 let _subStatus = null; // 'vip' | 'active' | 'inactive'
 
@@ -107,12 +107,11 @@ function showSubPopup(count, limit, isSubscribed) {
 
     if (msg) {
         msg.textContent = isSubscribed
-            ? `You've used all ${limit} of your Pro analyses today. Resets at midnight.`
+            ? `You've used all ${limit} of your Premium analyses today. Resets at midnight.`
             : `You've used your ${limit} free analyses today. Upgrade for ${PRO_LIMIT} per day.`;
     }
 
-    const payBtn = document.getElementById('subPayBtn');
-    if (payBtn) payBtn.onclick = () => { window.open(STRIPE_LINK, '_blank'); };
+    _wirePayBtn();
 
     popup.classList.remove('hidden');
     pill.classList.add('hidden');
@@ -130,6 +129,63 @@ function minimiseSubPopup() {
     document.body.style.overflow = '';
 }
 
+// ── Wire the pay button (called each time popup opens) ────────────────────────
+function _wirePayBtn() {
+    const btn = document.getElementById('subPayBtn');
+    if (!btn) return;
+    btn.textContent = 'Get PitchIQ Premium — £3/mo';
+    btn.disabled = false;
+
+    btn.onclick = async () => {
+        const user = getUser();
+        if (!user) { openAuthModal('login'); return; }
+
+        btn.textContent = 'Redirecting to payment...';
+        btn.disabled = true;
+
+        try {
+            const resp = await fetch(CHECKOUT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id:    user.id,
+                    email:      user.email,
+                    return_url: window.location.origin + window.location.pathname
+                })
+            });
+            const { url, error } = await resp.json();
+            if (error) throw new Error(error);
+            window.location.href = url;
+        } catch (e) {
+            btn.textContent = 'Get PitchIQ Premium — £3/mo';
+            btn.disabled = false;
+            alert('Could not start checkout: ' + e.message);
+        }
+    };
+}
+
+// ── Handle return from Stripe ─────────────────────────────────────────────────
+function _handlePaymentReturn() {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('payment');
+    if (!status) return;
+
+    history.replaceState({}, '', window.location.pathname);
+
+    if (status === 'success') {
+        const toast = document.getElementById('paymentToast');
+        if (toast) {
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 6000);
+        }
+        // Webhook may not have fired yet — poll subscription after a short delay
+        setTimeout(async () => {
+            await loadSubscription();
+            updateUsagePill();
+        }, 3000);
+    }
+}
+
 // ── Init popup controls ───────────────────────────────────────────────────────
 function initBilling() {
     document.getElementById('subPopupClose')?.addEventListener('click', hideSubPopup);
@@ -140,4 +196,6 @@ function initBilling() {
         const limit = isActive ? PRO_LIMIT : FREE_LIMIT;
         showSubPopup(count, limit, isActive);
     });
+
+    _handlePaymentReturn();
 }

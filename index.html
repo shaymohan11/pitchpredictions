@@ -9,7 +9,7 @@
     <link rel="manifest" href="manifest.json">
     <title>PitchPredictions · Football Stats &amp; Predictions</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
@@ -31,7 +31,7 @@
                 <div class="logo-ball">⚽</div>
                 <div class="logo-text">
                     <span class="logo-name">PitchPredictions</span>
-                    <span class="logo-tag">Football Intelligence</span>
+                    <span class="logo-tag">Football Predictions</span>
                 </div>
             </div>
             <nav class="header-nav">
@@ -313,30 +313,46 @@
 <!-- Subscription popup -->
 <div id="subPopup" class="sub-popup hidden">
     <div class="sub-popup-inner">
-        <div class="sub-popup-header">
+        <div class="sub-popup-controls">
             <button id="subPopupMinimize" class="sub-popup-btn" title="Minimise">−</button>
             <button id="subPopupClose"    class="sub-popup-btn" title="Close">×</button>
         </div>
-        <div class="sub-popup-icon">🔒</div>
-        <div class="sub-popup-title">Daily limit reached</div>
-        <div class="sub-popup-used" id="subPopupUsed"></div>
+
+        <div class="sub-header-band">
+            <div class="sub-crown">👑</div>
+            <div class="sub-brand-name">PitchIQ Premium</div>
+            <div class="sub-brand-sub">Full football predictions, every day</div>
+        </div>
+
+        <p class="sub-popup-used" id="subPopupUsed"></p>
+
         <div class="sub-price-wrap">
             <span class="sub-price-amount">£3</span>
             <span class="sub-price-period">/month</span>
         </div>
+
         <ul class="sub-features">
-            <li>20 analyses per day</li>
-            <li>All markets &amp; predictions</li>
-            <li>Save unlimited analyses</li>
-            <li>Cancel anytime</li>
+            <li>20 match analyses every day</li>
+            <li>All markets — corners, cards &amp; more</li>
+            <li>Save unlimited match analyses</li>
+            <li>Cancel anytime, no commitment</li>
         </ul>
-        <button id="subPayBtn" class="sub-pay-btn">Subscribe — £3/month</button>
-        <div class="sub-popup-note">No free trial · Instant access on payment</div>
+
+        <button id="subPayBtn" class="sub-pay-btn">
+            Get PitchIQ Premium — £3/mo
+        </button>
+        <div class="sub-pay-methods">Accepts card · Apple Pay · Google Pay</div>
+        <div class="sub-popup-note">No free trial · Instant access · Secured by Stripe</div>
     </div>
 </div>
 
 <!-- Minimised pill -->
-<div id="subPill" class="sub-pill hidden">🔒 Subscribe — £3/mo</div>
+<div id="subPill" class="sub-pill hidden">👑 PitchIQ Premium — £3/mo</div>
+
+<!-- Payment success toast -->
+<div id="paymentToast" class="payment-toast hidden">
+    <span>👑 Payment received! Activating your Premium account...</span>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="js/espn-teams.js?v=5"></script>

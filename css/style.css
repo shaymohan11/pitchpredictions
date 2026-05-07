@@ -39,9 +39,21 @@
 
 html { scroll-behavior: smooth; }
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   font-size: 14px; line-height: 1.5;
-  color: var(--text); background: var(--bg);
+  color: var(--text);
+  background-color: #eaecf0;
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0px, transparent 52px,
+      rgba(0,0,0,0.022) 52px, rgba(0,0,0,0.022) 104px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px, transparent 120px,
+      rgba(0,0,0,0.012) 120px, rgba(0,0,0,0.012) 121px
+    );
   -webkit-font-smoothing: antialiased;
 }
 
@@ -75,7 +87,7 @@ body {
   animation: ticker 30s linear infinite;
 }
 .ticker-inner:hover { animation-play-state: paused; }
-@keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+@keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(var(--tw, -50%)); } }
 .ticker-item {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 0 20px; height: 34px; font-size: 12px; font-weight: 600;
@@ -636,25 +648,37 @@ body {
 .modal-toggle button { background: none; border: none; color: var(--gold); font-weight: 700; cursor: pointer; font-family: inherit; font-size: 12px; text-decoration: underline; }
 
 /* ─── Subscription Popup ────────────────────── */
-.sub-popup { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); animation: fadeIn 0.2s ease; }
-.sub-popup-inner { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 36px 32px 28px; width: 100%; max-width: 380px; text-align: center; position: relative; box-shadow: 0 24px 64px rgba(0,0,0,0.2); }
-.sub-popup-header { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; }
-.sub-popup-btn { width: 26px; height: 26px; border-radius: 50%; background: var(--bg); border: 1px solid var(--border); color: var(--text-muted); font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; line-height: 1; }
-.sub-popup-btn:hover { background: var(--border); color: var(--text); }
-.sub-popup-icon { font-size: 44px; margin-bottom: 10px; }
-.sub-popup-title { font-size: 22px; font-weight: 900; color: var(--text); margin-bottom: 8px; }
-.sub-popup-used { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; line-height: 1.5; }
-.sub-price-wrap { margin-bottom: 20px; }
-.sub-price-amount { font-size: 52px; font-weight: 900; line-height: 1; color: var(--gold); }
+/* ─── Subscription Popup ────────────────────────── */
+.sub-popup { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(6px); animation: fadeIn 0.2s ease; }
+.sub-popup-inner { background: var(--white); border-radius: 22px; width: 100%; max-width: 390px; text-align: center; position: relative; box-shadow: 0 32px 80px rgba(0,0,0,0.28); overflow: hidden; }
+.sub-popup-controls { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; z-index: 10; }
+.sub-popup-btn { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.8); font-size: 17px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; line-height: 1; }
+.sub-popup-btn:hover { background: rgba(255,255,255,0.25); color: #fff; }
+
+.sub-header-band { background: linear-gradient(145deg, #0F1019 0%, #1c1e30 60%, #0F1019 100%); border-bottom: 3px solid var(--gold); padding: 36px 24px 24px; }
+.sub-crown { font-size: 40px; margin-bottom: 10px; filter: drop-shadow(0 2px 8px rgba(200,168,75,0.5)); }
+.sub-brand-name { font-size: 22px; font-weight: 900; color: var(--gold); letter-spacing: -0.3px; margin-bottom: 4px; }
+.sub-brand-sub { font-size: 12px; color: rgba(255,255,255,0.5); font-weight: 500; }
+
+.sub-popup-used { font-size: 13px; color: var(--text-muted); margin: 20px 28px 0; line-height: 1.5; }
+.sub-price-wrap { margin: 16px 0 20px; }
+.sub-price-amount { font-size: 56px; font-weight: 900; line-height: 1; color: var(--gold); }
 .sub-price-period { font-size: 18px; color: var(--text-muted); font-weight: 600; }
-.sub-features { list-style: none; margin: 0 0 24px; display: flex; flex-direction: column; gap: 8px; text-align: left; }
-.sub-features li { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--gold-pale); border-radius: 8px; }
-.sub-features li::before { content: '✓'; color: var(--gold); font-weight: 900; }
-.sub-pay-btn { width: 100%; padding: 15px; background: var(--gold); border: none; border-radius: 12px; font-size: 16px; font-weight: 800; color: #fff; cursor: pointer; margin-bottom: 12px; transition: background 0.15s, transform 0.15s; }
-.sub-pay-btn:hover { background: var(--gold-light); transform: translateY(-1px); }
-.sub-popup-note { font-size: 11px; color: var(--text-light); }
-.sub-pill { position: fixed; bottom: 20px; right: 20px; z-index: 2000; background: var(--gold); color: #fff; padding: 11px 20px; border-radius: 30px; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow); transition: transform 0.15s; animation: fadeIn 0.2s ease; }
+.sub-features { list-style: none; margin: 0 24px 22px; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.sub-features li { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: var(--gold-pale); border-radius: 10px; border: 1px solid rgba(200,168,75,0.2); }
+.sub-features li::before { content: '✓'; color: var(--gold); font-weight: 900; font-size: 14px; flex-shrink: 0; }
+.sub-pay-btn { display: block; width: calc(100% - 48px); margin: 0 24px 10px; padding: 16px; background: linear-gradient(135deg, var(--gold) 0%, var(--gold-mid) 100%); border: none; border-radius: 14px; font-size: 15px; font-weight: 800; color: #fff; cursor: pointer; box-shadow: 0 4px 16px rgba(200,168,75,0.35); transition: opacity 0.15s, transform 0.15s; }
+.sub-pay-btn:hover { opacity: 0.92; transform: translateY(-1px); }
+.sub-pay-btn:disabled { opacity: 0.6; transform: none; cursor: default; }
+.sub-pay-methods { font-size: 11px; color: var(--text-light); margin-bottom: 8px; }
+.sub-popup-note { font-size: 11px; color: var(--text-light); padding-bottom: 22px; }
+
+.sub-pill { position: fixed; bottom: 20px; right: 20px; z-index: 2000; background: linear-gradient(135deg, var(--gold), var(--gold-mid)); color: #fff; padding: 12px 22px; border-radius: 30px; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 16px rgba(200,168,75,0.4); transition: transform 0.15s; animation: fadeIn 0.2s ease; }
 .sub-pill:hover { transform: translateY(-2px); }
+
+/* ─── Payment Success Toast ─────────────────────── */
+.payment-toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 3000; background: #0F1019; border: 2px solid var(--gold); color: var(--gold); padding: 14px 24px; border-radius: 30px; font-size: 14px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,0.25); animation: fadeIn 0.3s ease; white-space: nowrap; }
+.payment-toast.hidden { display: none !important; }
 
 /* ─── Responsive ────────────────────────────── */
 @media (max-width: 1200px) { .three-col { grid-template-columns: 280px 1fr; } .sidebar-col:last-child { display: none; } }
