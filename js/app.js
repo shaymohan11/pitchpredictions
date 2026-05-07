@@ -800,14 +800,34 @@ function renderPredictions(t1, t2, preds) {
     const bttsDiv = document.createElement('div');
     bttsDiv.className = 'btts-card';
     bttsDiv.innerHTML = `
-        <div class="btts-title">⚽ Both Teams to Score</div>
-        <div class="btts-pct ${bCls}">${b.prob}%</div>
-        <div class="btts-sub">probability both teams score</div>
-        <div class="btts-grid">
-            <div class="btts-stat"><div class="btts-stat-val">${b.team1ScoredPct}%</div><div class="btts-stat-lbl">${t1n} scored</div></div>
-            <div class="btts-stat"><div class="btts-stat-val">${b.team2ScoredPct}%</div><div class="btts-stat-lbl">${t2n} scored</div></div>
-            <div class="btts-stat"><div class="btts-stat-val">${b.team1CSPct}%</div><div class="btts-stat-lbl">${t1n} clean sheet</div></div>
-            <div class="btts-stat"><div class="btts-stat-val">${b.team2CSPct}%</div><div class="btts-stat-lbl">${t2n} clean sheet</div></div>
+        <div class="btts-title">Both Teams to Score</div>
+        <div class="btts-main">
+            <div class="btts-pct-wrap">
+                <div class="btts-pct ${bCls}">${b.prob}%</div>
+                <div class="btts-sub">probability</div>
+            </div>
+            <div class="btts-context">
+                <div class="btts-ctx-row">
+                    <span class="btts-ctx-label">${t1n} scores</span>
+                    <div class="btts-ctx-bar"><div class="btts-ctx-fill" style="width:${b.team1ScoredPct}%"></div></div>
+                    <span class="btts-ctx-val">${b.team1ScoredPct}%</span>
+                </div>
+                <div class="btts-ctx-row">
+                    <span class="btts-ctx-label">${t2n} scores</span>
+                    <div class="btts-ctx-bar"><div class="btts-ctx-fill" style="width:${b.team2ScoredPct}%"></div></div>
+                    <span class="btts-ctx-val">${b.team2ScoredPct}%</span>
+                </div>
+                <div class="btts-ctx-row">
+                    <span class="btts-ctx-label">${t1n} clean sheet</span>
+                    <div class="btts-ctx-bar"><div class="btts-ctx-fill" style="width:${b.team1CSPct}%;background:var(--text-light)"></div></div>
+                    <span class="btts-ctx-val">${b.team1CSPct}%</span>
+                </div>
+                <div class="btts-ctx-row">
+                    <span class="btts-ctx-label">${t2n} clean sheet</span>
+                    <div class="btts-ctx-bar"><div class="btts-ctx-fill" style="width:${b.team2CSPct}%;background:var(--text-light)"></div></div>
+                    <span class="btts-ctx-val">${b.team2CSPct}%</span>
+                </div>
+            </div>
         </div>`;
     el.appendChild(bttsDiv);
 
