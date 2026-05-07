@@ -1,6 +1,6 @@
 /* PitchIQ — Usage limits & subscription */
 
-const VIP_EMAIL  = 'OreVolt321@gmail.com';
+const VIP_EMAIL  = 'orevolt321@gmail.com'; // lowercase — Google OAuth normalises emails
 const FREE_LIMIT = 3;
 const PRO_LIMIT  = 20;
 const STRIPE_LINK = '#'; // fill in tomorrow after Stripe setup
@@ -11,7 +11,7 @@ let _subStatus = null; // 'vip' | 'active' | 'inactive'
 async function loadSubscription() {
     const user = getUser();
     if (!user) { _subStatus = null; updateUsagePill(); return; }
-    if (user.email === VIP_EMAIL) { _subStatus = 'vip'; updateUsagePill(); return; }
+    if (user.email?.toLowerCase() === VIP_EMAIL) { _subStatus = 'vip'; updateUsagePill(); return; }
 
     try {
         const { data } = await db.from('subscriptions')
