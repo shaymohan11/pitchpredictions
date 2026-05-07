@@ -488,7 +488,7 @@ body {
   max-width: 1600px; margin: 0 auto; padding: 20px 28px;
   display: grid; grid-template-columns: 320px 1fr 320px; gap: 22px; align-items: start;
 }
-.sidebar-col { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 130px; min-height: 600px; }
+.sidebar-col { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 156px; min-height: 600px; }
 .center-col  { min-width: 0; }
 .sb-card { background: var(--white); border: none; border-top: 3px solid var(--gold); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-sm); }
 .sb-title { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
@@ -602,6 +602,7 @@ body {
 .wdl-team { font-size: 10px; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: 0.5px; }
 .wdl-pct  { font-size: 30px; font-weight: 900; color: var(--text); letter-spacing: -1px; }
 .wdl-box.wdl-top .wdl-pct { color: var(--gold); }
+.wdl-box.wdl-top .wdl-team { color: var(--gold); }
 .pred-model-note { font-size: 10px; color: var(--text-light); margin-top: 10px; text-align: right; }
 
 /* ─── Save / auth buttons ───────────────────── */
@@ -674,13 +675,14 @@ body {
 .payment-toast.hidden { display: none !important; }
 
 /* ─── Responsive ────────────────────────────── */
-@media (max-width: 1200px) { .three-col { grid-template-columns: 260px 1fr; } .sidebar-col:last-child { display: none; } }
-@media (max-width: 900px)  { .three-col { grid-template-columns: 1fr; } .sidebar-col { position: static; min-height: 0; } }
+@media (max-width: 1200px) {
+  .three-col { grid-template-columns: 260px 1fr; }
+  .sidebar-col:last-child { display: none; }
+}
 
-/* ── Tablet (900px) ───────────────────────────── */
 @media (max-width: 900px) {
-  .three-col { padding: 16px; gap: 14px; }
-  .sidebar-col { display: none; }          /* hide sidebars — show centre only */
+  .three-col { grid-template-columns: 1fr; padding: 16px; gap: 14px; }
+  .sidebar-col { display: none; }
 }
 
 /* ── Mobile (640px) ───────────────────────────── */
@@ -753,6 +755,12 @@ body {
   .sub-price-amount { font-size: 44px; }
   .sub-features { margin: 0 14px 18px; }
   .sub-pay-btn { width: calc(100% - 28px); margin: 0 14px 10px; }
+}
+
+/* ── Tiny phones (400px) ──────────────────────── */
+@media (max-width: 400px) {
+  .logo-name { font-size: 13px; }
+  .nav-btn   { font-size: 10px; padding: 5px 7px; }
 }
 
 /* ─── Animations ────────────────────────────── */

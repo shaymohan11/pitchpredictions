@@ -212,7 +212,7 @@ function buildMatchCard(fx, type) {
                 <span class="mc-name">${away.name}</span>
             </div>
         </div>
-        <div class="mc-analyse-hint">Tap to analyse this match →</div>
+        <div class="mc-analyse-hint">Analyse this match →</div>
     `;
     card.addEventListener('click', () => prefillTeams(home, away));
     return card;
@@ -761,14 +761,15 @@ function renderPredictions(t1, t2, preds) {
 
     // ── Double Chance ──
     const dc    = preds.doubleChance;
+    const dcTop = Math.max(dc.homeOrDraw, dc.drawOrAway, dc.homeOrAway);
     const dcDiv = document.createElement('div');
     dcDiv.className = 'pred-card';
     dcDiv.innerHTML = `
         <div class="pred-card-title">🎯 Double Chance</div>
         <div class="wdl-row">
-            <div class="wdl-box"><div class="wdl-team">1X</div><div class="wdl-pct">${dc.homeOrDraw}%</div><div class="dc-sub">${t1n} or Draw</div></div>
-            <div class="wdl-box"><div class="wdl-team">X2</div><div class="wdl-pct">${dc.drawOrAway}%</div><div class="dc-sub">Draw or ${t2n}</div></div>
-            <div class="wdl-box"><div class="wdl-team">12</div><div class="wdl-pct">${dc.homeOrAway}%</div><div class="dc-sub">Either Team</div></div>
+            <div class="wdl-box ${dc.homeOrDraw === dcTop ? 'wdl-top' : ''}"><div class="wdl-team">1X</div><div class="wdl-pct">${dc.homeOrDraw}%</div><div class="dc-sub">${t1n} or Draw</div></div>
+            <div class="wdl-box ${dc.drawOrAway === dcTop ? 'wdl-top' : ''}"><div class="wdl-team">X2</div><div class="wdl-pct">${dc.drawOrAway}%</div><div class="dc-sub">Draw or ${t2n}</div></div>
+            <div class="wdl-box ${dc.homeOrAway === dcTop ? 'wdl-top' : ''}"><div class="wdl-team">12</div><div class="wdl-pct">${dc.homeOrAway}%</div><div class="dc-sub">Either Team</div></div>
         </div>
         <div class="pred-lines" style="margin-top:4px">
             ${[{label:'1X',pct:dc.homeOrDraw},{label:'X2',pct:dc.drawOrAway},{label:'12',pct:dc.homeOrAway}].map(r => {
