@@ -9,8 +9,12 @@ function factorial(n) {
 
 function poissonProb(lambda, k) {
     if (lambda <= 0) return k === 0 ? 1 : 0;
-    if (k > 20) return 0;
-    return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
+    if (k > 200) return 0;
+    // Log-space for numerical stability with large lambda (shots, corners, etc.)
+    let logP = k * Math.log(lambda) - lambda;
+    for (let i = 1; i <= k; i++) logP -= Math.log(i);
+    const p = Math.exp(logP);
+    return isFinite(p) ? p : 0;
 }
 
 const RHO      = -0.1;   // Dixon-Coles low-score correction
@@ -123,9 +127,29 @@ function predictMatch(avgs1, avgs2) {
     const lA = Math.max(0.1, avgs2.goals * AWAY_ADJ);
     const wdl = calcWDL(lH, lA);
 
+    // Shot/corner/card estimates derived from goals (league-average correlations)
+    const SHOTS_PER_GOAL = 9.5;   // EPL avg ≈ 9.3 shots per goal
+    const SOT_RATE       = 0.33;  // ~33% of shots on target
+    const CORN_PER_GOAL  = 3.7;   // EPL avg ≈ 3.7 corners per goal
+    const FH_SHARE       = 0.38;  // ~38% of goals scored in first half
+
+    const shotsH = lH * SHOTS_PER_GOAL;
+    const shotsA = lA * SHOTS_PER_GOAL;
+
     return {
         wdl,
-        goals: buildStat('Total Goals', 'goals', lH, lA, [0.5, 1.5, 2.5, 3.5, 4.5]),
+        doubleChance: {
+            homeOrDraw: wdl.homeWin + wdl.draw,
+            drawOrAway: wdl.draw + wdl.awayWin,
+            homeOrAway: wdl.homeWin + wdl.awayWin
+        },
+        goals:           buildStat('Total Goals',       'goals', lH,                    lA,                    [0.5, 1.5, 2.5, 3.5, 4.5]),
+        goalsFirstHalf:  buildStat('First Half Goals',  'goals', lH * FH_SHARE,          lA * FH_SHARE,          [0.5, 1.5]),
+        goalsSecondHalf: buildStat('Second Half Goals', 'goals', lH * (1 - FH_SHARE),    lA * (1 - FH_SHARE),    [0.5, 1.5, 2.5]),
+        shots:           buildStat('Total Shots',       'shots', shotsH,                 shotsA,                 [18.5, 21.5, 24.5, 27.5, 30.5]),
+        shotsOnTarget:   buildStat('Shots on Target',   'sot',   shotsH * SOT_RATE,      shotsA * SOT_RATE,      [4.5, 6.5, 8.5, 10.5]),
+        corners:         buildStat('Total Corners',     'crnrs', lH * CORN_PER_GOAL,     lA * CORN_PER_GOAL,     [7.5, 9.5, 11.5, 13.5]),
+        cards:           buildStat('Total Cards',       'cards', 1.75,                   1.75,                   [1.5, 2.5, 3.5, 4.5]),
         btts: {
             label:          'Both Teams to Score',
             prob:           Math.round(avgs1.scoredRate * avgs2.scoredRate * 100),

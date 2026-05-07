@@ -23,7 +23,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     initAnalyseTab();
     initRefreshBtn();
     initAuthModal();
+    initBilling();
     await initAuth();
+    await loadSubscription();
     loadLiveTab();
     loadUpcomingFixtures();
     loadStandings('39'); // auto-load Premier League standings
@@ -280,7 +282,7 @@ function renderStandingsTable(data) {
                             </div>
                         </td>
                         <td class="st-num">${r.played}</td>
-                        <td class="st-num" style="color:${r.goalDiff >= 0 ? 'var(--green)' : 'var(--red)'}">${r.goalDiff > 0 ? '+' : ''}${r.goalDiff}</td>
+                        <td class="st-num" style="color:${r.goalDiff >= 0 ? 'var(--gold)' : 'var(--red)'}">${r.goalDiff > 0 ? '+' : ''}${r.goalDiff}</td>
                         <td class="st-pts">${r.points}</td>
                     </tr>
                 `).join('')}
@@ -515,6 +517,11 @@ function checkReady() {
 // ─── Run Analysis ─────────────────────────────────────────────────────────────
 async function runAnalysis() {
     if (!state.team1 || !state.team2) return;
+
+    // Auth + usage gate
+    const canRun = await checkCanAnalyse();
+    if (!canRun) return;
+
     document.getElementById('results').classList.add('hidden');
     document.getElementById('analyseError').classList.add('hidden');
     document.getElementById('analyseLoading').classList.remove('hidden');
@@ -539,7 +546,7 @@ async function runAnalysis() {
 
         document.getElementById('analyseLoading').classList.add('hidden');
         renderResults(t1, t2, data1, data2, h2h);
-        updateApiUsage();
+        await recordAnalysis();
     } catch (e) {
         document.getElementById('analyseLoading').classList.add('hidden');
         document.getElementById('errorMsg').textContent = e.message;
@@ -672,11 +679,26 @@ function renderHero(t1, t2, avgs1, avgs2, data1, data2, h2h) {
 // ─── Stats ────────────────────────────────────────────────────────────────────
 function renderStats(t1, t2, avgs1, avgs2) {
     const rows = [
-        { label: 'Goals Scored (avg)',  a: avgs1.goals,                            b: avgs2.goals },
-        { label: 'Goals Conceded (avg)',a: avgs1.goalsConceded,                    b: avgs2.goalsConceded },
-        { label: 'Clean Sheets %',      a: Math.round(avgs1.cleanSheetRate * 100), b: Math.round(avgs2.cleanSheetRate * 100) },
-        { label: 'Scored in Game %',    a: Math.round(avgs1.scoredRate * 100),     b: Math.round(avgs2.scoredRate * 100) },
-        { label: 'Win Rate %',          a: Math.round(avgs1.winRate * 100),        b: Math.round(avgs2.winRate * 100) },
+        {
+            label: 'Goals Scored (avg)', tip: 'Exponentially weighted average goals scored per game — recent matches count more. Used directly in the Dixon-Coles model to predict scorelines.',
+            a: avgs1.goals, b: avgs2.goals
+        },
+        {
+            label: 'Goals Conceded (avg)', tip: 'Exponentially weighted average goals conceded per game. A lower number reflects a stronger defensive record in recent form.',
+            a: avgs1.goalsConceded, b: avgs2.goalsConceded
+        },
+        {
+            label: 'Clean Sheets %', tip: 'Percentage of recent games where the team kept a clean sheet (0 goals conceded). Weighted towards the most recent matches.',
+            a: Math.round(avgs1.cleanSheetRate * 100), b: Math.round(avgs2.cleanSheetRate * 100)
+        },
+        {
+            label: 'Scored in Game %', tip: 'Percentage of recent games where the team scored at least one goal. Used to calculate the Both Teams to Score probability.',
+            a: Math.round(avgs1.scoredRate * 100), b: Math.round(avgs2.scoredRate * 100)
+        },
+        {
+            label: 'Win Rate %', tip: 'Straight win percentage across all recent games analysed (no weighting). Gives a quick read of overall form.',
+            a: Math.round(avgs1.winRate * 100), b: Math.round(avgs2.winRate * 100)
+        },
     ];
     const fmt = v => typeof v === 'number' && v % 1 !== 0 ? v.toFixed(1) : v;
     document.getElementById('statsContent').innerHTML = `
@@ -688,7 +710,7 @@ function renderStats(t1, t2, avgs1, avgs2) {
             <div class="stat-row">
                 <span class="stat-num">${fmt(r.a)}</span>
                 <div class="stat-center">
-                    <div class="stat-name">${r.label}</div>
+                    <div class="stat-name" data-tip="${r.tip}">${r.label}</div>
                     <div class="stat-bar">
                         <div class="stat-bar-l" style="width:${lp}%"></div>
                         <div class="stat-bar-r"></div>
@@ -702,98 +724,129 @@ function renderStats(t1, t2, avgs1, avgs2) {
 
 // ─── Predictions ──────────────────────────────────────────────────────────────
 function renderPredictions(t1, t2, preds) {
-    const el = document.getElementById('predictionsContent');
+    const el  = document.getElementById('predictionsContent');
     el.innerHTML = '';
+    const t1n = t1.name.split(' ')[0];
+    const t2n = t2.name.split(' ')[0];
 
-    // W/D/L outcome card (Dixon-Coles)
-    const wdl = preds.wdl;
+    // ── Match Result (Dixon-Coles) ──
+    const wdl    = preds.wdl;
     const topIdx = [wdl.homeWin, wdl.draw, wdl.awayWin].indexOf(Math.max(wdl.homeWin, wdl.draw, wdl.awayWin));
     const wdlDiv = document.createElement('div');
     wdlDiv.className = 'pred-card';
     wdlDiv.innerHTML = `
         <div class="pred-card-title">🏆 Match Result — Dixon-Coles Model</div>
         <div class="wdl-row">
-            <div class="wdl-box ${topIdx === 0 ? 'wdl-top' : ''}">
-                <div class="wdl-team">${t1.name.split(' ')[0]} Win</div>
-                <div class="wdl-pct">${wdl.homeWin}%</div>
-            </div>
-            <div class="wdl-box ${topIdx === 1 ? 'wdl-top' : ''}">
-                <div class="wdl-team">Draw</div>
-                <div class="wdl-pct">${wdl.draw}%</div>
-            </div>
-            <div class="wdl-box ${topIdx === 2 ? 'wdl-top' : ''}">
-                <div class="wdl-team">${t2.name.split(' ')[0]} Win</div>
-                <div class="wdl-pct">${wdl.awayWin}%</div>
-            </div>
+            <div class="wdl-box ${topIdx === 0 ? 'wdl-top' : ''}"><div class="wdl-team">${t1n} Win</div><div class="wdl-pct">${wdl.homeWin}%</div></div>
+            <div class="wdl-box ${topIdx === 1 ? 'wdl-top' : ''}"><div class="wdl-team">Draw</div><div class="wdl-pct">${wdl.draw}%</div></div>
+            <div class="wdl-box ${topIdx === 2 ? 'wdl-top' : ''}"><div class="wdl-team">${t2n} Win</div><div class="wdl-pct">${wdl.awayWin}%</div></div>
         </div>
         <div class="pred-lines">
-            ${[
-                { label: t1.name.split(' ')[0], pct: wdl.homeWin },
-                { label: 'Draw',                 pct: wdl.draw },
-                { label: t2.name.split(' ')[0], pct: wdl.awayWin }
-            ].map(row => {
-                const cls = row.pct >= 50 ? 'high' : row.pct >= 30 ? 'medium' : 'low';
-                return `<div class="pred-line">
-                    <span class="pred-line-label">${row.label}</span>
-                    <div class="pred-line-track">
-                        <div class="pred-line-bar ${cls}" style="width:${Math.min(row.pct,100)}%">${row.pct >= 15 ? row.pct+'%' : ''}</div>
-                    </div>
-                    <span class="pred-line-pct">${row.pct}%</span>
-                </div>`;
+            ${[{label:t1n,pct:wdl.homeWin},{label:'Draw',pct:wdl.draw},{label:t2n,pct:wdl.awayWin}].map(r => {
+                const c = r.pct>=50?'high':r.pct>=30?'medium':'low';
+                return `<div class="pred-line"><span class="pred-line-label">${r.label}</span><div class="pred-line-track"><div class="pred-line-bar ${c}" style="width:${Math.min(r.pct,100)}%">${r.pct>=15?r.pct+'%':''}</div></div><span class="pred-line-pct">${r.pct}%</span></div>`;
             }).join('')}
         </div>
-        <div class="pred-model-note">Dixon-Coles model · Home advantage applied · Weighted recent form</div>
-    `;
+        <div class="pred-model-note">Dixon-Coles model · Home advantage applied · Weighted recent form</div>`;
     el.appendChild(wdlDiv);
 
-    // BTTS
-    const b   = preds.btts;
-    const cls = b.prob >= 65 ? 'high' : b.prob >= 40 ? 'medium' : 'low';
+    // ── Double Chance ──
+    const dc    = preds.doubleChance;
+    const dcDiv = document.createElement('div');
+    dcDiv.className = 'pred-card';
+    dcDiv.innerHTML = `
+        <div class="pred-card-title">🎯 Double Chance</div>
+        <div class="wdl-row">
+            <div class="wdl-box"><div class="wdl-team">1X</div><div class="wdl-pct">${dc.homeOrDraw}%</div><div class="dc-sub">${t1n} or Draw</div></div>
+            <div class="wdl-box"><div class="wdl-team">X2</div><div class="wdl-pct">${dc.drawOrAway}%</div><div class="dc-sub">Draw or ${t2n}</div></div>
+            <div class="wdl-box"><div class="wdl-team">12</div><div class="wdl-pct">${dc.homeOrAway}%</div><div class="dc-sub">Either Team</div></div>
+        </div>
+        <div class="pred-lines" style="margin-top:4px">
+            ${[{label:'1X',pct:dc.homeOrDraw},{label:'X2',pct:dc.drawOrAway},{label:'12',pct:dc.homeOrAway}].map(r => {
+                const c = r.pct>=75?'high':r.pct>=55?'medium':'low';
+                return `<div class="pred-line"><span class="pred-line-label">${r.label}</span><div class="pred-line-track"><div class="pred-line-bar ${c}" style="width:${Math.min(r.pct,100)}%">${r.pct}%</div></div><span class="pred-line-pct">${r.pct}%</span></div>`;
+            }).join('')}
+        </div>`;
+    el.appendChild(dcDiv);
+
+    // ── Total Goals ──
+    el.appendChild(buildMarketCard('⚽', 'Total Goals', preds.goals, t1n, t2n));
+
+    // ── Goals by Half ──
+    const halvesDiv = document.createElement('div');
+    halvesDiv.className = 'pred-card';
+    halvesDiv.innerHTML = `
+        <div class="pred-card-title">⏱️ Goals by Half</div>
+        <div class="halves-grid">
+            ${buildHalfHtml('1st Half', preds.goalsFirstHalf)}
+            ${buildHalfHtml('2nd Half', preds.goalsSecondHalf)}
+        </div>
+        <div class="pred-model-note">Based on 38% / 62% historical first/second-half goal split</div>`;
+    el.appendChild(halvesDiv);
+
+    // ── BTTS ──
+    const b      = preds.btts;
+    const bCls   = b.prob >= 65 ? 'high' : b.prob >= 40 ? 'medium' : 'low';
     const bttsDiv = document.createElement('div');
     bttsDiv.className = 'btts-card';
     bttsDiv.innerHTML = `
         <div class="btts-title">⚽ Both Teams to Score</div>
-        <div class="btts-pct ${cls}">${b.prob}%</div>
+        <div class="btts-pct ${bCls}">${b.prob}%</div>
         <div class="btts-sub">probability both teams score</div>
         <div class="btts-grid">
-            <div class="btts-stat"><div class="btts-stat-val">${b.team1ScoredPct}%</div><div class="btts-stat-lbl">${t1.name.split(' ')[0]} scored</div></div>
-            <div class="btts-stat"><div class="btts-stat-val">${b.team2ScoredPct}%</div><div class="btts-stat-lbl">${t2.name.split(' ')[0]} scored</div></div>
-            <div class="btts-stat"><div class="btts-stat-val">${b.team1CSPct}%</div><div class="btts-stat-lbl">${t1.name.split(' ')[0]} clean sheet</div></div>
-            <div class="btts-stat"><div class="btts-stat-val">${b.team2CSPct}%</div><div class="btts-stat-lbl">${t2.name.split(' ')[0]} clean sheet</div></div>
-        </div>
-    `;
+            <div class="btts-stat"><div class="btts-stat-val">${b.team1ScoredPct}%</div><div class="btts-stat-lbl">${t1n} scored</div></div>
+            <div class="btts-stat"><div class="btts-stat-val">${b.team2ScoredPct}%</div><div class="btts-stat-lbl">${t2n} scored</div></div>
+            <div class="btts-stat"><div class="btts-stat-val">${b.team1CSPct}%</div><div class="btts-stat-lbl">${t1n} clean sheet</div></div>
+            <div class="btts-stat"><div class="btts-stat-val">${b.team2CSPct}%</div><div class="btts-stat-lbl">${t2n} clean sheet</div></div>
+        </div>`;
     el.appendChild(bttsDiv);
 
-    // Market predictions
-    const markets = [
-        { key: 'goals', icon: '⚽', title: 'Total Goals' },
-    ];
-    markets.forEach(m => {
-        const p   = preds[m.key];
-        const div = document.createElement('div');
-        div.className = 'pred-card';
-        div.innerHTML = `
-            <div class="pred-card-title">${m.icon} ${m.title}</div>
-            <div class="pred-avgs">
-                <div class="pred-avg-box"><div class="pred-avg-val">${p.avgTeam1}</div><div class="pred-avg-lbl">${t1.name.split(' ')[0]}</div></div>
-                <div class="pred-avg-box highlight"><div class="pred-avg-val">${p.predicted}</div><div class="pred-avg-lbl">Predicted</div></div>
-                <div class="pred-avg-box"><div class="pred-avg-val">${p.avgTeam2}</div><div class="pred-avg-lbl">${t2.name.split(' ')[0]}</div></div>
-            </div>
+    // ── Shot & corner markets (estimated from goals data) ──
+    el.appendChild(buildMarketCard('🎯', 'Total Shots',       preds.shots,         t1n, t2n, true));
+    el.appendChild(buildMarketCard('🥅', 'Shots on Target',   preds.shotsOnTarget, t1n, t2n, true));
+    el.appendChild(buildMarketCard('🚩', 'Total Corners',     preds.corners,       t1n, t2n, true));
+    el.appendChild(buildMarketCard('🟨', 'Total Cards',       preds.cards,         t1n, t2n, true));
+}
+
+function buildHalfHtml(label, stat) {
+    return `
+        <div class="half-section">
+            <div class="half-label">${label} <span class="half-pred">${stat.predicted}</span></div>
             <div class="pred-lines">
-                ${p.lines.map(l => {
-                    const lc = l.over >= 65 ? 'high' : l.over >= 40 ? 'medium' : 'low';
+                ${stat.lines.map(l => {
+                    const c = l.over >= 65 ? 'high' : l.over >= 40 ? 'medium' : 'low';
                     return `<div class="pred-line">
                         <span class="pred-line-label">${l.label}</span>
-                        <div class="pred-line-track">
-                            <div class="pred-line-bar ${lc}" style="width:${Math.min(l.over,100)}%">${l.over >= 15 ? l.over+'%' : ''}</div>
-                        </div>
+                        <div class="pred-line-track"><div class="pred-line-bar ${c}" style="width:${Math.min(l.over,100)}%">${l.over >= 15 ? l.over+'%' : ''}</div></div>
                         <span class="pred-line-pct">${l.over}%</span>
                     </div>`;
                 }).join('')}
             </div>
-        `;
-        el.appendChild(div);
-    });
+        </div>`;
+}
+
+function buildMarketCard(icon, title, p, t1n, t2n, estimated = false) {
+    const div = document.createElement('div');
+    div.className = 'pred-card';
+    div.innerHTML = `
+        <div class="pred-card-title">${icon} ${title}</div>
+        <div class="pred-avgs">
+            <div class="pred-avg-box"><div class="pred-avg-val">${p.avgTeam1}</div><div class="pred-avg-lbl">${t1n}</div></div>
+            <div class="pred-avg-box highlight"><div class="pred-avg-val">${p.predicted}</div><div class="pred-avg-lbl">Predicted</div></div>
+            <div class="pred-avg-box"><div class="pred-avg-val">${p.avgTeam2}</div><div class="pred-avg-lbl">${t2n}</div></div>
+        </div>
+        <div class="pred-lines">
+            ${p.lines.map(l => {
+                const c = l.over >= 65 ? 'high' : l.over >= 40 ? 'medium' : 'low';
+                return `<div class="pred-line">
+                    <span class="pred-line-label">${l.label}</span>
+                    <div class="pred-line-track"><div class="pred-line-bar ${c}" style="width:${Math.min(l.over,100)}%">${l.over >= 15 ? l.over+'%' : ''}</div></div>
+                    <span class="pred-line-pct">${l.over}%</span>
+                </div>`;
+            }).join('')}
+        </div>
+        ${estimated ? '<div class="pred-model-note">Estimated from goals data — no direct shot/corner/card history</div>' : ''}`;
+    return div;
 }
 
 // ─── H2H ─────────────────────────────────────────────────────────────────────

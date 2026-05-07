@@ -22,6 +22,7 @@ async function initAuth() {
             closeAuthModal();
             loadPinnedTeams();
             loadSavedAnalyses();
+            if (typeof loadSubscription === 'function') loadSubscription();
         }
         if (event === 'SIGNED_OUT') {
             if (typeof renderPinnedTeams === 'function')  renderPinnedTeams([]);
