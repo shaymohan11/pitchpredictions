@@ -675,7 +675,7 @@ body {
 
 /* ─── Responsive ────────────────────────────── */
 @media (max-width: 1200px) { .three-col { grid-template-columns: 280px 1fr; } .sidebar-col:last-child { display: none; } }
-@media (max-width: 900px)  { .three-col { grid-template-columns: 1fr; } .sidebar-col { position: static; } }
+@media (max-width: 900px)  { .three-col { grid-template-columns: 1fr; } .sidebar-col { position: static; min-height: 0; } }
 @media (max-width: 640px)  {
   .three-col { padding: 12px; gap: 12px; }
   .header-nav .nav-btn { padding: 8px 10px; font-size: 12px; }
